@@ -1,0 +1,106 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isActiveParentEvent() {
+      return resource.data.status in ["active", "draft"];
+    }
+
+    function isReasonableLimitedQuery(maxLimit) {
+      return request.query.limit != null && request.query.limit <= maxLimit;
+    }
+
+    function isSignedInStaff() {
+      return request.auth != null
+        && request.auth.token.staff == true;
+    }
+
+    function isSignedInAdmin() {
+      return request.auth != null
+        && request.auth.token.admin == true;
+    }
+
+    match /schools/{schoolId} {
+      // Public read is required after an event has been resolved so the parent
+      // dashboard can render school context. Keep school documents free of
+      // private student or staff data.
+      allow get: if true;
+      allow list: if false;
+      allow create, update, delete: if false;
+
+      // Future write policy:
+      // allow write: if isSignedInAdmin();
+    }
+
+    match /events/{eventId} {
+      // Supports MeetingRepository.findByCode(meetingCode), which queries by
+      // meetingCode and active/draft status. Firestore rules are not filters:
+      // the client query must constrain results so every returned document
+      // satisfies this rule.
+      allow get, list: if isActiveParentEvent();
+      allow create, update, delete: if false;
+
+      // Future write policy:
+      // allow write: if isSignedInAdmin() || isSignedInStaff();
+    }
+
+    match /students/{studentId} {
+      // Supports accountless parent lookup by schoolNumber + schoolId.
+      //
+      // Limitation: Firestore rules cannot reliably assert that a list query
+      // included exact where clauses for both schoolNumber and schoolId, nor
+      // can they compare the student classId against an event selected by
+      // meetingCode from a previous client query. The repository enforces that
+      // event-scoped validation in application code. The limit requirement
+      // reduces accidental broad reads but is not a complete anti-enumeration
+      // control.
+      allow list: if isReasonableLimitedQuery(1);
+      allow get: if false;
+      allow create, update, delete: if false;
+
+      // Future hardening should replace this with a lookup-token, callable
+      // function, App Check, or deterministic event-scoped lookup document.
+    }
+
+    match /classes/{classId} {
+      // Required after a valid student lookup to display class and grade.
+      // Keep class documents limited to non-sensitive metadata.
+      allow get: if true;
+      allow list: if false;
+      allow create, update, delete: if false;
+
+      // Future write policy:
+      // allow write: if isSignedInAdmin() || isSignedInStaff();
+    }
+
+    match /teachers/{teacherId} {
+      // Required to render teacher cards and optional class teacher. Teacher
+      // documents must not contain private staff data in this public v1 flow.
+      allow get: if true;
+      allow list: if false;
+      allow create, update, delete: if false;
+
+      // Future write policy:
+      // allow write: if isSignedInAdmin() || isSignedInStaff();
+    }
+
+    match /meetingAssignments/{assignmentId} {
+      // Supports ParentMeetingRepository.getParentMeetingView(), which queries
+      // assignments by eventId, schoolId, and classId. Firestore rules cannot
+      // prove those exact where clauses from the rules language. The query
+      // limit caps accidental broad reads, but future hardening should make
+      // assignments addressable under an event/class path or use a tokenized
+      // parent view document.
+      allow list: if isReasonableLimitedQuery(50);
+      allow get: if false;
+      allow create, update, delete: if false;
+
+      // Future write policy:
+      // allow write: if isSignedInAdmin() || isSignedInStaff();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
