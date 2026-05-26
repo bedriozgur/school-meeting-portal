@@ -30,11 +30,25 @@ export function mapMeetingEvent(
     id,
     schoolId: data.schoolId ?? "",
     code: data.meetingCode ?? "",
-    status: data.status === "draft" ? "draft" : "active",
+    status: isMeetingEventStatus(data.status) ? data.status : "draft",
     includedClasses: data.includedClasses ?? [],
+    includedClassNames: data.includedClassNames ?? data.includedClasses ?? [],
     title: data.title ?? "",
     date: data.date ?? "",
+    startTime: data.startTime ?? "",
+    endTime: data.endTime ?? "",
   };
+}
+
+function isMeetingEventStatus(
+  value: string | undefined,
+): value is MeetingEvent["status"] {
+  return (
+    value === "active" ||
+    value === "draft" ||
+    value === "old" ||
+    value === "archived"
+  );
 }
 
 export function mapStudent(params: {
@@ -53,6 +67,7 @@ export function mapStudent(params: {
     className: classData.name ?? "",
     grade: classData.grade ?? "",
     classTeacherId: classData.classTeacherId ?? "",
+    isActive: studentData.isActive ?? true,
   };
 }
 
@@ -64,6 +79,7 @@ export function mapTeacher(
     id,
     name: data.fullName ?? "",
     subject: data.defaultSubject ?? "",
+    isActive: data.isActive ?? true,
   };
 }
 

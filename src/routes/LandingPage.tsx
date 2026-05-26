@@ -3,10 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { SchoolHeader } from "../components/SchoolHeader";
 import { useT } from "../hooks/useT";
 import { useSessionStore } from "../store/sessionStore";
+import { useSchoolBranding } from "../theme/useSchoolBranding";
 
 export function LandingPage() {
   const { t } = useT();
   const navigate = useNavigate();
+  const branding = useSchoolBranding();
   const savedMeetingCode = useSessionStore((state) => state.meetingCode);
   const setMeetingCode = useSessionStore((state) => state.setMeetingCode);
   const [meetingCode, setLocalMeetingCode] = useState(savedMeetingCode);
@@ -29,11 +31,11 @@ export function LandingPage() {
       <section className="grid flex-1 items-center gap-8 py-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-5">
           <p className="label">{t("landing.welcomeEyebrow")}</p>
-          <h1 className="font-display text-5xl font-black leading-[0.95] text-emerald-950 sm:text-6xl">
-            {t("landing.title")}
+          <h1 className="heading font-display text-5xl font-black leading-[0.95] sm:text-6xl">
+            {t(branding.welcomeTitle)}
           </h1>
-          <p className="max-w-2xl text-lg font-semibold leading-8 text-stone-700">
-            {t("landing.description")}
+          <p className="copy max-w-2xl text-lg font-semibold leading-8">
+            {t(branding.welcomeSubtitle)}
           </p>
         </div>
 
@@ -51,7 +53,7 @@ export function LandingPage() {
             <button className="btn-primary w-full" type="submit">
               {t("landing.continue")}
             </button>
-            <p className="text-center text-sm font-bold text-stone-600">
+            <p className="copy text-center text-sm font-bold">
               {t("landing.helper")}
             </p>
           </div>

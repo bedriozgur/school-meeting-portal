@@ -112,6 +112,23 @@ function publicDb() {
   return testEnv.unauthenticatedContext().firestore();
 }
 
+function nonAdminDb() {
+  return testEnv
+    .authenticatedContext("non-admin-user", {
+      email: "teacher@example.com",
+    })
+    .firestore();
+}
+
+function adminDb() {
+  return testEnv
+    .authenticatedContext("admin-user", {
+      email: "admin@example.com",
+      admin: true,
+    })
+    .firestore();
+}
+
 describe("events", () => {
   it("allows get and query for active events", async () => {
     const db = publicDb();
@@ -172,9 +189,24 @@ describe("events", () => {
       ),
     );
   });
+
+  it("allows authenticated admins to read old and archived events", async () => {
+    const db = adminDb();
+
+    await assertSucceeds(getDoc(doc(db, "events", "event-old")));
+    await assertSucceeds(getDoc(doc(db, "events", "event-archived")));
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(db, "events"),
+          where("status", "==", "archived"),
+        ),
+      ),
+    );
+  });
 });
 
-describe("public writes", () => {
+describe("writes", () => {
   const collections = [
     "schools",
     "events",
@@ -194,7 +226,53 @@ describe("public writes", () => {
       await assertFails(updateDoc(existingRef, { publicWriteAttempt: true }));
       await assertFails(deleteDoc(existingRef));
     });
+
+    it(`denies authenticated non-admin create, update, and delete on ${collectionName}`, async () => {
+      const db = nonAdminDb();
+      const existingRef = doc(db, collectionName, existingDocumentId(collectionName));
+      const newRef = doc(db, collectionName, "new-non-admin-write");
+
+      await assertFails(setDoc(newRef, { schoolId: "school-1" }));
+      await assertFails(updateDoc(existingRef, { nonAdminWriteAttempt: true }));
+      await assertFails(deleteDoc(existingRef));
+    });
+
+    it(`allows authenticated admin create, update, and delete on ${collectionName}`, async () => {
+      const db = adminDb();
+      const existingRef = doc(db, collectionName, existingDocumentId(collectionName));
+      const newRef = doc(db, collectionName, "new-admin-write");
+
+      await assertSucceeds(setDoc(newRef, { schoolId: "school-1" }));
+      await assertSucceeds(updateDoc(existingRef, { adminWriteAttempt: true }));
+      await assertSucceeds(deleteDoc(newRef));
+    });
   }
+});
+
+describe("event status writes", () => {
+  it("denies unauthenticated event status update", async () => {
+    await assertFails(
+      updateDoc(doc(publicDb(), "events", "event-draft"), {
+        status: "active",
+      }),
+    );
+  });
+
+  it("denies authenticated non-admin event status update", async () => {
+    await assertFails(
+      updateDoc(doc(nonAdminDb(), "events", "event-draft"), {
+        status: "active",
+      }),
+    );
+  });
+
+  it("allows authenticated admin event status update", async () => {
+    await assertSucceeds(
+      updateDoc(doc(adminDb(), "events", "event-draft"), {
+        status: "active",
+      }),
+    );
+  });
 });
 
 describe("students", () => {

@@ -19,9 +19,14 @@ export function LanguageSwitcher() {
         <button
           className={`rounded-full px-3 py-2 text-sm font-extrabold transition ${
             activeLanguage === language
-              ? "bg-emerald-900 text-white"
-              : "text-stone-700 hover:bg-stone-100"
+              ? "text-white"
+              : "copy hover:bg-white"
           }`}
+          style={
+            activeLanguage === language
+              ? { background: "var(--color-primary)" }
+              : undefined
+          }
           key={language}
           onClick={() => setLanguage(language)}
           type="button"

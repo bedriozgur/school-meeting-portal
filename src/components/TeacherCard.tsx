@@ -9,9 +9,9 @@ const availabilityKeys = {
 } as const;
 
 const availabilityClasses = {
-  available: "bg-emerald-100 text-emerald-900",
-  busy: "bg-rose-100 text-rose-900",
-  limited: "bg-amber-100 text-amber-900",
+  available: "status-success",
+  busy: "status-danger",
+  limited: "status-warning",
 } as const;
 
 type TeacherCardProps = {
@@ -34,10 +34,10 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-xl font-extrabold text-stone-950">
+            <h3 className="text-strong text-xl font-extrabold">
               {assignment.teacher.name}
             </h3>
-            <p className="mt-1 text-base font-bold text-stone-600">
+            <p className="copy mt-1 text-base font-bold">
               {assignment.subject}
             </p>
           </div>
@@ -49,30 +49,30 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
         </div>
 
         <dl className="grid grid-cols-3 gap-2 text-sm">
-          <div className="rounded-2xl bg-stone-100 p-3">
-            <dt className="font-extrabold text-stone-500">
+          <div className="soft-panel rounded-2xl p-3">
+            <dt className="copy font-extrabold">
               {t("dashboard.building")}
             </dt>
             <dd className="mt-1 text-lg font-black">{assignment.building}</dd>
           </div>
-          <div className="rounded-2xl bg-stone-100 p-3">
-            <dt className="font-extrabold text-stone-500">
+          <div className="soft-panel rounded-2xl p-3">
+            <dt className="copy font-extrabold">
               {t("dashboard.floor")}
             </dt>
             <dd className="mt-1 text-lg font-black">{assignment.floor}</dd>
           </div>
-          <div className="rounded-2xl bg-stone-100 p-3">
-            <dt className="font-extrabold text-stone-500">
+          <div className="soft-panel rounded-2xl p-3">
+            <dt className="copy font-extrabold">
               {t("dashboard.classroom")}
             </dt>
             <dd className="mt-1 text-lg font-black">{assignment.classroom}</dd>
           </div>
         </dl>
 
-        <label className="flex min-h-12 items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3 text-base font-extrabold">
+        <label className="flex min-h-12 items-center gap-3 rounded-2xl border bg-white px-4 py-3 text-base font-extrabold [border-color:var(--color-border)]">
           <input
             checked={visited}
-            className="h-6 w-6 accent-emerald-900"
+            className="h-6 w-6 [accent-color:var(--color-primary)]"
             onChange={(event) =>
               setTeacherVisited(assignment.id, event.target.checked)
             }

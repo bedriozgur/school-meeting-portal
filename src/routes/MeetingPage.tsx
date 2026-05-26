@@ -94,22 +94,22 @@ export function MeetingPage() {
         <div className="space-y-5">
           <div>
             <p className="label">{decodedMeetingCode}</p>
-            <h1 className="mt-3 font-display text-4xl font-black text-emerald-950 sm:text-5xl">
+            <h1 className="heading mt-3 font-display text-4xl font-black sm:text-5xl">
               {t("meeting.title")}
             </h1>
-            <p className="mt-3 text-base font-semibold leading-7 text-stone-700">
+            <p className="copy mt-3 text-base font-semibold leading-7">
               {t("meeting.description")}
             </p>
           </div>
 
           {meetingStatus === "loading" ? (
-            <p className="rounded-2xl bg-stone-100 px-4 py-3 text-sm font-extrabold text-stone-700">
+            <p className="soft-panel copy rounded-2xl px-4 py-3 text-sm font-extrabold">
               {t("meeting.loading")}
             </p>
           ) : null}
 
           {errorKey ? (
-            <p className="rounded-2xl bg-rose-100 px-4 py-3 text-sm font-extrabold text-rose-950">
+            <p className="status-danger rounded-2xl px-4 py-3 text-sm font-extrabold">
               {t(errorKey)}
             </p>
           ) : null}
@@ -126,7 +126,7 @@ export function MeetingPage() {
               />
             </label>
             <button
-              className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-primary w-full"
               disabled={
                 meetingStatus !== "success" || studentStatus === "loading"
               }

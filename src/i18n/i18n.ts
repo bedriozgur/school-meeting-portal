@@ -2,7 +2,7 @@ import en from "./en.json";
 import tr from "./tr.json";
 
 export type Language = "tr" | "en";
-type TranslationKey = keyof typeof tr;
+export type TranslationKey = keyof typeof tr;
 
 const dictionaries: Record<Language, Record<TranslationKey, string>> = {
   tr,

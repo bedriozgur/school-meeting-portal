@@ -1,16 +1,36 @@
 import type {
   MeetingEvent,
+  SchoolClass,
   School,
   Student,
   Teacher,
   TeacherAssignment,
+  EventAssignmentInput,
 } from "../../domain/models";
+import { DEFAULT_SCHOOL_ID } from "../../config/school";
 
 export const mockSchool: School = {
-  id: "atatürk-ortaokulu",
+  id: DEFAULT_SCHOOL_ID,
   name: "Atatürk Ortaokulu",
   logoInitials: "OT",
 };
+
+export const mockClasses: SchoolClass[] = [
+  {
+    id: "class-7-b",
+    schoolId: mockSchool.id,
+    name: "7-B",
+    grade: "7",
+    classTeacherId: "ayse-demir",
+  },
+  {
+    id: "class-6-a",
+    schoolId: mockSchool.id,
+    name: "6-A",
+    grade: "6",
+    classTeacherId: "mehmet-kaya",
+  },
+];
 
 export const mockMeetingEvents: MeetingEvent[] = [
   {
@@ -19,8 +39,47 @@ export const mockMeetingEvents: MeetingEvent[] = [
     code: "BAHAR2026",
     status: "active",
     includedClasses: ["class-7-b", "class-6-a"],
+    includedClassNames: ["7-B", "6-A"],
     title: "Bahar Dönemi Veli Görüşmeleri",
     date: "2026-05-26",
+    startTime: "09:00",
+    endTime: "16:30",
+  },
+  {
+    id: "fall-2026-parent-meetings",
+    schoolId: mockSchool.id,
+    code: "GUZ2026",
+    status: "draft",
+    includedClasses: ["class-7-b"],
+    includedClassNames: ["7-B"],
+    title: "Güz Dönemi Veli Görüşmeleri",
+    date: "2026-11-12",
+    startTime: "10:00",
+    endTime: "15:30",
+  },
+  {
+    id: "spring-2025-parent-meetings",
+    schoolId: mockSchool.id,
+    code: "BAHAR2025",
+    status: "old",
+    includedClasses: ["class-6-a"],
+    includedClassNames: ["6-A"],
+    title: "Geçmiş Veli Görüşmeleri",
+    date: "2025-05-15",
+    startTime: "09:30",
+    endTime: "16:00",
+  },
+  {
+    id: "archive-2024-parent-meetings",
+    schoolId: mockSchool.id,
+    code: "ARSIV2024",
+    status: "archived",
+    includedClasses: ["class-6-a", "class-7-b"],
+    includedClassNames: ["6-A", "7-B"],
+    title: "Arşivlenmiş Veli Görüşmeleri",
+    date: "2024-12-05",
+    startTime: "09:00",
+    endTime: "12:00",
   },
 ];
 
@@ -172,3 +231,20 @@ export const mockTeacherAssignments: TeacherAssignment[] = [
     availability: "busy",
   },
 ];
+
+export const mockEventAssignments: Array<EventAssignmentInput & { id: string }> =
+  mockMeetingEvents.flatMap((event) =>
+    event.includedClasses.flatMap((classId) =>
+      mockTeacherAssignments.map((assignment) => ({
+        id: `${event.id}-${classId}-${assignment.teacher.id}-${assignment.subject.toLowerCase().replaceAll(" ", "-")}`,
+        eventId: event.id,
+        classId,
+        teacherId: assignment.teacher.id,
+        subject: assignment.subject,
+        building: assignment.building,
+        floor: assignment.floor,
+        classroom: assignment.classroom,
+        availability: assignment.availability,
+      })),
+    ),
+  );

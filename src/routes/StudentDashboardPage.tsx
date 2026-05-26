@@ -123,10 +123,10 @@ export function StudentDashboardPage() {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="label">{decodedMeetingCode}</p>
-            <h1 className="mt-3 font-display text-4xl font-black text-emerald-950 sm:text-5xl">
+            <h1 className="heading mt-3 font-display text-4xl font-black sm:text-5xl">
               {t("dashboard.title")}
             </h1>
-            <p className="mt-3 max-w-2xl text-base font-semibold leading-7 text-stone-700">
+            <p className="copy mt-3 max-w-2xl text-base font-semibold leading-7">
               {t("dashboard.description")}
             </p>
           </div>
@@ -151,7 +151,7 @@ export function StudentDashboardPage() {
         </div>
 
         {shareMessage ? (
-          <p className="mt-4 rounded-2xl bg-amber-100 px-4 py-3 text-sm font-bold text-amber-950">
+          <p className="status-warning mt-4 rounded-2xl px-4 py-3 text-sm font-bold">
             {shareMessage}
           </p>
         ) : null}
@@ -194,14 +194,14 @@ export function StudentDashboardPage() {
             {t("dashboard.changeMeeting")}
           </button>
         </div>
-        <p className="mt-3 text-center text-sm font-bold text-stone-600">
+        <p className="copy mt-3 text-center text-sm font-bold">
           {t("dashboard.sessionHint")}
         </p>
       </section>
 
       {status === "loading" ? (
         <section className="surface p-6 text-center">
-          <p className="text-lg font-extrabold text-stone-800">
+          <p className="text-strong text-lg font-extrabold">
             {t("dashboard.loading")}
           </p>
         </section>
@@ -210,7 +210,7 @@ export function StudentDashboardPage() {
       {status === "success" && parentMeetingView ? (
         <section>
           <div className="mb-4 flex items-end justify-between gap-4">
-            <h2 className="font-display text-3xl font-black text-emerald-950">
+            <h2 className="heading font-display text-3xl font-black">
               {t("dashboard.teachers")}
             </h2>
             <p className="label">{teacherAssignments.length}</p>
@@ -225,7 +225,7 @@ export function StudentDashboardPage() {
 
       {status === "error" ? (
         <section className="surface p-6 text-center">
-          <p className="text-lg font-extrabold text-stone-800">
+          <p className="text-strong text-lg font-extrabold">
             {t("dashboard.loadError")}
           </p>
           <Link
@@ -244,7 +244,7 @@ function InfoCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="surface p-4">
       <p className="label">{label}</p>
-      <p className="mt-2 text-xl font-black text-stone-950">{value}</p>
+      <p className="text-strong mt-2 text-xl font-black">{value}</p>
     </div>
   );
 }

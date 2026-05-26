@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/firestore.rules.test.ts\""
+    "test:rules": "JAVA_HOME=${JAVA_HOME:-$PWD/.local-jdk/jdk-21.0.11+10/Contents/Home} firebase emulators:exec --only firestore \"vitest run tests/firestore.rules.test.ts\""
   },
   "dependencies": {
     "@types/react": "^19.1.0",
@@ -16,16 +16,19 @@
     "autoprefixer": "^10.4.0",
     "firebase": "^12.13.0",
     "postcss": "^8.5.0",
+    "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.8.0",
     "vite": "^7.0.0",
+    "xlsx": "^0.18.5",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.1",
+    "@types/qrcode": "^1.5.6",
     "firebase-tools": "^15.18.0",
     "vitest": "^4.1.7"
   }

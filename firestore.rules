@@ -10,12 +10,7 @@ service cloud.firestore {
       return request.query.limit != null && request.query.limit <= maxLimit;
     }
 
-    function isSignedInStaff() {
-      return request.auth != null
-        && request.auth.token.staff == true;
-    }
-
-    function isSignedInAdmin() {
+    function isAdmin() {
       return request.auth != null
         && request.auth.token.admin == true;
     }
@@ -25,11 +20,8 @@ service cloud.firestore {
       // dashboard can render school context. Keep school documents free of
       // private student or staff data.
       allow get: if true;
-      allow list: if false;
-      allow create, update, delete: if false;
-
-      // Future write policy:
-      // allow write: if isSignedInAdmin();
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     match /events/{eventId} {
@@ -37,11 +29,8 @@ service cloud.firestore {
       // meetingCode and active/draft status. Firestore rules are not filters:
       // the client query must constrain results so every returned document
       // satisfies this rule.
-      allow get, list: if isActiveParentEvent();
-      allow create, update, delete: if false;
-
-      // Future write policy:
-      // allow write: if isSignedInAdmin() || isSignedInStaff();
+      allow get, list: if isAdmin() || isActiveParentEvent();
+      allow create, update, delete: if isAdmin();
     }
 
     match /students/{studentId} {
@@ -54,9 +43,9 @@ service cloud.firestore {
       // event-scoped validation in application code. The limit requirement
       // reduces accidental broad reads but is not a complete anti-enumeration
       // control.
-      allow list: if isReasonableLimitedQuery(1);
-      allow get: if false;
-      allow create, update, delete: if false;
+      allow list: if isAdmin() || isReasonableLimitedQuery(1);
+      allow get: if isAdmin();
+      allow create, update, delete: if isAdmin();
 
       // Future hardening should replace this with a lookup-token, callable
       // function, App Check, or deterministic event-scoped lookup document.
@@ -66,22 +55,16 @@ service cloud.firestore {
       // Required after a valid student lookup to display class and grade.
       // Keep class documents limited to non-sensitive metadata.
       allow get: if true;
-      allow list: if false;
-      allow create, update, delete: if false;
-
-      // Future write policy:
-      // allow write: if isSignedInAdmin() || isSignedInStaff();
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     match /teachers/{teacherId} {
       // Required to render teacher cards and optional class teacher. Teacher
       // documents must not contain private staff data in this public v1 flow.
       allow get: if true;
-      allow list: if false;
-      allow create, update, delete: if false;
-
-      // Future write policy:
-      // allow write: if isSignedInAdmin() || isSignedInStaff();
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     match /meetingAssignments/{assignmentId} {
@@ -91,12 +74,9 @@ service cloud.firestore {
       // limit caps accidental broad reads, but future hardening should make
       // assignments addressable under an event/class path or use a tokenized
       // parent view document.
-      allow list: if isReasonableLimitedQuery(50);
-      allow get: if false;
-      allow create, update, delete: if false;
-
-      // Future write policy:
-      // allow write: if isSignedInAdmin() || isSignedInStaff();
+      allow list: if isAdmin() || isReasonableLimitedQuery(50);
+      allow get: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     match /{document=**} {
