@@ -5,7 +5,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  orderBy,
   query,
   serverTimestamp,
   updateDoc,
@@ -16,33 +15,52 @@ import { DEFAULT_SCHOOL_ID } from "../../config/school";
 import type { TeacherRepository } from "../interfaces";
 import { mapTeacher } from "./firestoreMappers";
 import { requireFirestore } from "./firestoreLookups";
+import { logFirestoreCollectionFailure } from "./firestoreRepositoryLogging";
 import type { FirestoreTeacherDocument } from "./firestoreTypes";
 
 export const firestoreTeacherRepository: TeacherRepository = {
   async listTeachers(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
-    const snapshot = await getDocs(
-      query(
-        collection(db, "teachers"),
-        where("schoolId", "==", schoolId),
-        orderBy("fullName", "asc"),
-      ),
-    );
+    try {
+      const snapshot = await getDocs(
+        query(collection(db, "teachers"), where("schoolId", "==", schoolId)),
+      );
 
-    return snapshot.docs.map((teacherDocument) =>
-      mapTeacher(
-        teacherDocument.id,
-        teacherDocument.data() as FirestoreTeacherDocument,
-      ),
-    ) satisfies Teacher[];
+      return snapshot.docs
+        .map((teacherDocument) =>
+          mapTeacher(
+            teacherDocument.id,
+            teacherDocument.data() as FirestoreTeacherDocument,
+          ),
+        )
+        .sort((left, right) => left.name.localeCompare(right.name, "tr")) satisfies Teacher[];
+    } catch (error) {
+      await logFirestoreCollectionFailure({
+        collectionName: "teachers",
+        operation: "listTeachers",
+        schoolId,
+        error,
+      });
+      throw error;
+    }
   },
   async countTeachers(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
-    const snapshot = await getCountFromServer(
-      query(collection(db, "teachers"), where("schoolId", "==", schoolId)),
-    );
+    try {
+      const snapshot = await getCountFromServer(
+        query(collection(db, "teachers"), where("schoolId", "==", schoolId)),
+      );
 
-    return snapshot.data().count;
+      return snapshot.data().count;
+    } catch (error) {
+      await logFirestoreCollectionFailure({
+        collectionName: "teachers",
+        operation: "countTeachers",
+        schoolId,
+        error,
+      });
+      throw error;
+    }
   },
   async getTeacherById(teacherId) {
     const db = requireFirestore();

@@ -5,8 +5,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  limit,
-  orderBy,
   query,
   serverTimestamp,
   updateDoc,
@@ -20,46 +18,67 @@ import {
   getClassById,
   requireFirestore,
 } from "./firestoreLookups";
+import { logFirestoreCollectionFailure } from "./firestoreRepositoryLogging";
 import type { FirestoreStudentDocument } from "./firestoreTypes";
 
 export const firestoreStudentRepository: StudentRepository = {
   async listStudents(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
-    const snapshot = await getDocs(
-      query(
-        collection(db, "students"),
-        where("schoolId", "==", schoolId),
-        orderBy("schoolNumber", "asc"),
-      ),
-    );
-    const students = await Promise.all(
-      snapshot.docs.map(async (studentDocument) => {
-        const data = studentDocument.data() as FirestoreStudentDocument;
-        const classData = await getClassById(db, data.classId ?? "");
+    try {
+      const snapshot = await getDocs(
+        query(collection(db, "students"), where("schoolId", "==", schoolId)),
+      );
+      const students = await Promise.all(
+        snapshot.docs.map(async (studentDocument) => {
+          const data = studentDocument.data() as FirestoreStudentDocument;
+          const classData = await getClassById(db, data.classId ?? "");
 
-        return {
-          id: studentDocument.id,
-          schoolId: data.schoolId ?? "",
-          schoolNumber: data.schoolNumber ?? "",
-          name: data.fullName ?? "",
-          classId: data.classId ?? "",
-          className: classData.name ?? "",
-          grade: classData.grade ?? "",
-          classTeacherId: classData.classTeacherId ?? "",
-          isActive: data.isActive ?? true,
-        } satisfies Student;
-      }),
-    );
+          return {
+            id: studentDocument.id,
+            schoolId: data.schoolId ?? "",
+            schoolNumber: data.schoolNumber ?? "",
+            name: data.fullName ?? "",
+            classId: data.classId ?? "",
+            className: classData.name ?? "",
+            grade: classData.grade ?? "",
+            classTeacherId: classData.classTeacherId ?? "",
+            isActive: data.isActive ?? true,
+          } satisfies Student;
+        }),
+      );
 
-    return students;
+      return students.sort((left, right) =>
+        left.schoolNumber.localeCompare(right.schoolNumber, "tr", {
+          numeric: true,
+        }),
+      );
+    } catch (error) {
+      await logFirestoreCollectionFailure({
+        collectionName: "students",
+        operation: "listStudents",
+        schoolId,
+        error,
+      });
+      throw error;
+    }
   },
   async countStudents(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
-    const snapshot = await getCountFromServer(
-      query(collection(db, "students"), where("schoolId", "==", schoolId)),
-    );
+    try {
+      const snapshot = await getCountFromServer(
+        query(collection(db, "students"), where("schoolId", "==", schoolId)),
+      );
 
-    return snapshot.data().count;
+      return snapshot.data().count;
+    } catch (error) {
+      await logFirestoreCollectionFailure({
+        collectionName: "students",
+        operation: "countStudents",
+        schoolId,
+        error,
+      });
+      throw error;
+    }
   },
   async getStudentById(studentId) {
     const db = requireFirestore();
@@ -175,21 +194,30 @@ async function assertSchoolNumberAvailable(
   excludingStudentId?: string,
 ) {
   const db = requireFirestore();
-  const snapshot = await getDocs(
-    query(
-      collection(db, "students"),
-      where("schoolId", "==", DEFAULT_SCHOOL_ID),
-      where("schoolNumber", "==", schoolNumber.trim()),
-      limit(2),
-    ),
-  );
-  const duplicate = snapshot.docs.some(
-    (studentDocument) =>
-      !excludingStudentId || studentDocument.id !== excludingStudentId,
-  );
+  try {
+    const snapshot = await getDocs(
+      query(
+        collection(db, "students"),
+        where("schoolId", "==", DEFAULT_SCHOOL_ID),
+        where("schoolNumber", "==", schoolNumber.trim()),
+      ),
+    );
+    const duplicate = snapshot.docs.some(
+      (studentDocument) =>
+        !excludingStudentId || studentDocument.id !== excludingStudentId,
+    );
 
-  if (duplicate) {
-    throw new Error(`School number is already in use: ${schoolNumber.trim()}`);
+    if (duplicate) {
+      throw new Error(`School number is already in use: ${schoolNumber.trim()}`);
+    }
+  } catch (error) {
+    await logFirestoreCollectionFailure({
+      collectionName: "students",
+      operation: "assertSchoolNumberAvailable",
+      schoolId: DEFAULT_SCHOOL_ID,
+      error,
+    });
+    throw error;
   }
 }
 

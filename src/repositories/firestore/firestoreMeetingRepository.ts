@@ -35,6 +35,7 @@ import {
   getTeachingAssignmentsForClass,
   requireFirestore,
 } from "./firestoreLookups";
+import { logFirestoreCollectionFailure } from "./firestoreRepositoryLogging";
 import type {
   FirestoreClassDocument,
   FirestoreEventDocument,
@@ -55,47 +56,75 @@ export const firestoreMeetingRepository: MeetingRepository = {
   },
   async listEvents(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
-    const snapshot = await getDocs(
-      query(
-        collection(db, "events"),
-        where("schoolId", "==", schoolId),
-        orderBy("date", "desc"),
-      ),
-    );
+    try {
+      const snapshot = await getDocs(
+        query(collection(db, "events"), where("schoolId", "==", schoolId)),
+      );
 
-    return snapshot.docs.map((eventDocument) =>
-      mapMeetingEvent(
-        eventDocument.id,
-        eventDocument.data() as FirestoreEventDocument,
-      ),
-    );
+      return snapshot.docs
+        .map((eventDocument) =>
+          mapMeetingEvent(
+            eventDocument.id,
+            eventDocument.data() as FirestoreEventDocument,
+          ),
+        )
+        .sort((left, right) => right.date.localeCompare(left.date));
+    } catch (error) {
+      await logFirestoreCollectionFailure({
+        collectionName: "events",
+        operation: "listEvents",
+        schoolId,
+        error,
+      });
+      throw error;
+    }
   },
   async listActiveDraftEvents(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
-    const snapshot = await getDocs(
-      query(
-        collection(db, "events"),
-        where("schoolId", "==", schoolId),
-        where("status", "in", ["active", "draft"]),
-      ),
-    );
-
-    return snapshot.docs
-      .map((eventDocument) =>
-        mapMeetingEvent(
-          eventDocument.id,
-          eventDocument.data() as FirestoreEventDocument,
+    try {
+      const snapshot = await getDocs(
+        query(
+          collection(db, "events"),
+          where("schoolId", "==", schoolId),
+          where("status", "in", ["active", "draft"]),
         ),
-      )
-      .sort((left, right) => right.date.localeCompare(left.date));
+      );
+
+      return snapshot.docs
+        .map((eventDocument) =>
+          mapMeetingEvent(
+            eventDocument.id,
+            eventDocument.data() as FirestoreEventDocument,
+          ),
+        )
+        .sort((left, right) => right.date.localeCompare(left.date));
+    } catch (error) {
+      await logFirestoreCollectionFailure({
+        collectionName: "events",
+        operation: "listActiveDraftEvents",
+        schoolId,
+        error,
+      });
+      throw error;
+    }
   },
   async countEvents(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
-    const snapshot = await getCountFromServer(
-      query(collection(db, "events"), where("schoolId", "==", schoolId)),
-    );
+    try {
+      const snapshot = await getCountFromServer(
+        query(collection(db, "events"), where("schoolId", "==", schoolId)),
+      );
 
-    return snapshot.data().count;
+      return snapshot.data().count;
+    } catch (error) {
+      await logFirestoreCollectionFailure({
+        collectionName: "events",
+        operation: "countEvents",
+        schoolId,
+        error,
+      });
+      throw error;
+    }
   },
   async getEventById(eventId) {
     const db = requireFirestore();
