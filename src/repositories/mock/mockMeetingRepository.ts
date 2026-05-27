@@ -36,6 +36,13 @@ export const mockMeetingRepository: MeetingRepository = {
   async listEvents(schoolId = DEFAULT_SCHOOL_ID) {
     return mockMeetingEvents.filter((meeting) => meeting.schoolId === schoolId);
   },
+  async listActiveDraftEvents(schoolId = DEFAULT_SCHOOL_ID) {
+    return mockMeetingEvents.filter(
+      (meeting) =>
+        meeting.schoolId === schoolId &&
+        ["active", "draft"].includes(meeting.status),
+    );
+  },
   async countEvents(schoolId = DEFAULT_SCHOOL_ID) {
     return mockMeetingEvents.filter((meeting) => meeting.schoolId === schoolId).length;
   },

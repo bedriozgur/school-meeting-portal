@@ -188,7 +188,8 @@ export function StaffDashboardPage() {
       }
 
       try {
-        const nextEvents = await repositories.meetingRepository.listEvents(
+        const nextEvents =
+          await repositories.meetingRepository.listActiveDraftEvents(
           schoolIdToUse,
         );
 

@@ -31,6 +31,7 @@ export type SchoolRepository = {
 export type MeetingRepository = {
   findByCode: (meetingCode: string) => Promise<MeetingEvent | null>;
   listEvents: (schoolId?: string) => Promise<MeetingEvent[]>;
+  listActiveDraftEvents: (schoolId?: string) => Promise<MeetingEvent[]>;
   countEvents: (schoolId?: string) => Promise<number>;
   getEventById: (eventId: string) => Promise<MeetingEvent | null>;
   getEventAssignments: (

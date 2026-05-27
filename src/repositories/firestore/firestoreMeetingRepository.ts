@@ -69,6 +69,25 @@ export const firestoreMeetingRepository: MeetingRepository = {
       ),
     );
   },
+  async listActiveDraftEvents(schoolId = DEFAULT_SCHOOL_ID) {
+    const db = requireFirestore();
+    const snapshot = await getDocs(
+      query(
+        collection(db, "events"),
+        where("schoolId", "==", schoolId),
+        where("status", "in", ["active", "draft"]),
+      ),
+    );
+
+    return snapshot.docs
+      .map((eventDocument) =>
+        mapMeetingEvent(
+          eventDocument.id,
+          eventDocument.data() as FirestoreEventDocument,
+        ),
+      )
+      .sort((left, right) => right.date.localeCompare(left.date));
+  },
   async countEvents(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
     const snapshot = await getCountFromServer(
