@@ -1,5 +1,6 @@
 import type { TranslationKey } from "../i18n/i18n";
 import type { ThemePresetName } from "./presets";
+import tedBursaLogo from "../assets/ted-bursa-logo.png";
 
 export type SchoolBrandingConfig = {
   schoolName: TranslationKey;
@@ -15,8 +16,9 @@ export type SchoolBrandingConfig = {
 export const defaultSchoolBranding: SchoolBrandingConfig = {
   schoolName: "app.schoolName",
   schoolShortName: "app.schoolShortName",
+  logoUrl: tedBursaLogo,
   logoInitials: "app.logoInitials",
   welcomeTitle: "landing.title",
   welcomeSubtitle: "landing.description",
-  themePreset: "academicGreen",
+  themePreset: "tedBursa",
 };

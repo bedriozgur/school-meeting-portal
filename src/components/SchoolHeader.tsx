@@ -13,21 +13,24 @@ export function SchoolHeader() {
         {branding.logoUrl ? (
           <img
             alt={t("app.logoAlt")}
-            className="h-14 w-14 shrink-0 rounded-2xl object-cover shadow-soft"
+            className="h-16 w-16 shrink-0 rounded-3xl border border-[color:var(--color-border)] bg-white object-contain p-2 shadow-soft"
             src={branding.logoUrl}
           />
         ) : (
           <div
             aria-label={t("app.logoAlt")}
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-xl font-black text-white shadow-soft"
+            className="grid h-16 w-16 shrink-0 place-items-center rounded-3xl border border-[color:var(--color-border)] text-xl font-black text-white shadow-soft"
             style={{ background: "var(--color-primary)" }}
           >
             {t(branding.logoInitials)}
           </div>
         )}
-        <p className="text-strong truncate text-lg font-extrabold">
-          {t(branding.schoolName)}
-        </p>
+        <div className="min-w-0">
+          <p className="label text-[10px]">{t(branding.schoolShortName)}</p>
+          <p className="text-strong truncate text-lg font-extrabold leading-tight sm:text-xl">
+            {t(branding.schoolName)}
+          </p>
+        </div>
       </div>
       <div className="flex flex-col items-end gap-1">
         <LanguageSwitcher />

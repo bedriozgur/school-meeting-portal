@@ -17,7 +17,7 @@ export const mockSchool: School = {
   shortName: "TED Bursa",
   logoInitials: "TED",
   isActive: true,
-  themePreset: "burgundy",
+  themePreset: "tedBursa",
 };
 
 export const mockSchools: School[] = [mockSchool];

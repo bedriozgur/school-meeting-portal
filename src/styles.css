@@ -1,13 +1,17 @@
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,800&family=Manrope:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color: var(--color-text, #243023);
+  color: var(--color-text, #12304f);
   background: var(--color-background, #f6f1e7);
-  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "cv11", "cv02", "cv03", "salt";
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -93,10 +97,13 @@ textarea {
 
   .heading {
     color: var(--color-primary);
+    letter-spacing: -0.04em;
+    line-height: 1.02;
   }
 
   .copy {
     color: var(--color-muted-text);
+    line-height: 1.65;
   }
 
   .text-strong {
@@ -144,4 +151,8 @@ textarea {
   .qr-card {
     margin-bottom: 1rem;
   }
+}
+
+body {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
 }

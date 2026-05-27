@@ -10,7 +10,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
   "shortName": "TED Bursa",
   "logoInitials": "TED",
   "isActive": true,
-  "themePreset": "burgundy"
+  "themePreset": "tedBursa"
 }
 ```
 

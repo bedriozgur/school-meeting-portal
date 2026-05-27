@@ -1,4 +1,5 @@
 export type ThemePresetName =
+  | "tedBursa"
   | "tedRed"
   | "modernBlue"
   | "academicGreen"
@@ -21,6 +22,19 @@ export type ThemePreset = {
 };
 
 export const themePresets: Record<ThemePresetName, ThemePreset> = {
+  tedBursa: {
+    primary: "#1e4f8c",
+    primaryHover: "#173e6d",
+    secondary: "#274f83",
+    background: "#f7f9fc",
+    surface: "rgba(255, 255, 255, 0.92)",
+    text: "#12304f",
+    mutedText: "#5f738d",
+    border: "#dbe4ef",
+    success: "#166534",
+    warning: "#d6b400",
+    danger: "#d92b3a",
+  },
   tedRed: {
     primary: "#b91c1c",
     primaryHover: "#991b1b",

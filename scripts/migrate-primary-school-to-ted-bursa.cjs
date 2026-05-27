@@ -11,7 +11,7 @@ const SCHOOL_DATA = {
   shortName: "TED Bursa",
   logoInitials: "TED",
   isActive: true,
-  themePreset: "burgundy",
+  themePreset: "tedBursa",
 };
 const COLLECTIONS_TO_REMAP = [
   "events",

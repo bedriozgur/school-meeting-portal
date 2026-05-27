@@ -451,6 +451,7 @@ The v1 branding system is preset-based and intentionally not a free-form theme e
 
 Theme presets live in `src/theme/presets.ts`:
 
+- `tedBursa`
 - `tedRed`
 - `modernBlue`
 - `academicGreen`
@@ -484,6 +485,10 @@ The default school branding config lives in `src/theme/branding.ts`. It supports
 - `primaryAccent`
 
 Visible text values in the branding config are stored as i18n keys, not literal UI strings. The active theme is applied through CSS variables by `src/theme/ThemeProvider.tsx`.
+
+The TED Bursa pilot theme uses the TED Bursa logo asset in `src/assets/ted-bursa-logo.png`, a light neutral background, TED blue as the primary structure color, red for actions/highlights, and yellow only as a minimal accent.
+
+Typography is set to `Inter` across the app to keep the UI calm, readable, and more SaaS-like on mobile and desktop.
 
 A future admin UI should offer a controlled preset selector that writes only `themePreset`, optional `primaryAccent`, and approved branding fields. It should not expose arbitrary color editing in v1.
 
