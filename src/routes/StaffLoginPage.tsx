@@ -42,6 +42,15 @@ export function StaffLoginPage() {
 
     setIsSubmitting(true);
     signIn();
+    if (import.meta.env.DEV === true) {
+      console.info(
+        "[Staff portal] session accepted",
+        JSON.stringify({
+          accessCodeConfigured: Boolean(import.meta.env.VITE_STAFF_ACCESS_CODE?.trim()),
+          fallbackUsed: !import.meta.env.VITE_STAFF_ACCESS_CODE?.trim(),
+        }),
+      );
+    }
     setIsSubmitting(false);
     navigate("/staff", { replace: true });
   }

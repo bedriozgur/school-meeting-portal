@@ -26,8 +26,8 @@ export const useStaffSessionStore = create<StaffSessionState>()(
     (set) => ({
       isAuthenticated: false,
       hasHydrated: false,
-      signIn: () => set({ isAuthenticated: true }),
-      signOut: () => set({ isAuthenticated: false }),
+      signIn: () => set({ isAuthenticated: true, hasHydrated: true }),
+      signOut: () => set({ isAuthenticated: false, hasHydrated: true }),
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
     }),
     {

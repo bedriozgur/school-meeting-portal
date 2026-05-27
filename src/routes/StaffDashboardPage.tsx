@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SchoolHeader } from "../components/SchoolHeader";
+import { DEFAULT_SCHOOL_ID } from "../config/school";
 import type { MeetingEvent, Student } from "../domain/models";
 import { QrCodeCard } from "../features/qr/QrCodeCard";
 import { useT } from "../hooks/useT";
 import type { TranslationKey } from "../i18n/i18n";
 import { repositories } from "../repositories";
+import { useAdminSchoolStore } from "../store/adminSchoolStore";
 import { useStaffSessionStore } from "../store/staffSessionStore";
 
 type LoadStatus = "loading" | "ready" | "error";
@@ -21,11 +23,21 @@ const statusKeys: Record<MeetingEvent["status"], TranslationKey> = {
 
 const printableStatuses: MeetingEvent["status"][] = ["active", "draft"];
 
+type StaffLoadErrorKey =
+  | "staff.loadError"
+  | "staff.schoolLoadError"
+  | "staff.eventsLoadError";
+
 export function StaffDashboardPage() {
   const { t } = useT();
   const navigate = useNavigate();
   const signOut = useStaffSessionStore((state) => state.signOut);
+  const adminSchoolId = useAdminSchoolStore((state) => state.currentSchoolId);
+  const adminSchoolHydrated = useAdminSchoolStore((state) => state.hasHydrated);
   const [status, setStatus] = useState<LoadStatus>("loading");
+  const [loadErrorKey, setLoadErrorKey] =
+    useState<StaffLoadErrorKey>("staff.loadError");
+  const [resolvedSchoolId, setResolvedSchoolId] = useState(DEFAULT_SCHOOL_ID);
   const [events, setEvents] = useState<MeetingEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState("");
   const [eventSearch, setEventSearch] = useState("");
@@ -37,11 +49,149 @@ export function StaffDashboardPage() {
 
   useEffect(() => {
     let isCurrent = true;
+    const debugEnabled = import.meta.env.DEV === true;
+    const selectedSchoolCandidate = adminSchoolHydrated
+      ? adminSchoolId.trim() || DEFAULT_SCHOOL_ID
+      : DEFAULT_SCHOOL_ID;
 
     setStatus("loading");
-    repositories.meetingRepository
-      .listEvents()
-      .then((nextEvents) => {
+    setLoadErrorKey("staff.loadError");
+    setEvents([]);
+    setSelectedEventId("");
+    setStudent(null);
+    setStudentSearchStatus("idle");
+    setStudentSearchError("");
+
+    async function loadDashboard() {
+      if (debugEnabled) {
+        console.info(
+          "[Staff dashboard] school resolution started",
+          JSON.stringify({
+            selectedSchoolCandidate,
+            adminSchoolHydrated,
+            hasPersistedSelection: Boolean(adminSchoolId.trim()),
+          }),
+        );
+      }
+
+      let schoolIdToUse = selectedSchoolCandidate;
+
+      try {
+        const resolvedSchool = await repositories.schoolRepository.getSchoolById(
+          selectedSchoolCandidate,
+        );
+
+        if (resolvedSchool) {
+          schoolIdToUse = resolvedSchool.id;
+          if (debugEnabled) {
+            console.info(
+              "[Staff dashboard] school resolution resolved",
+              JSON.stringify({
+                selectedSchoolCandidate,
+                schoolId: schoolIdToUse,
+                resolvedSchoolName: resolvedSchool.name,
+              }),
+            );
+          }
+        } else if (selectedSchoolCandidate !== DEFAULT_SCHOOL_ID) {
+          if (debugEnabled) {
+            console.info(
+              "[Staff dashboard] school resolution fallback",
+              JSON.stringify({
+                selectedSchoolCandidate,
+                fallbackSchoolId: DEFAULT_SCHOOL_ID,
+              }),
+            );
+          }
+
+          const fallbackSchool = await repositories.schoolRepository.getSchoolById(
+            DEFAULT_SCHOOL_ID,
+          );
+
+          if (fallbackSchool) {
+            schoolIdToUse = fallbackSchool.id;
+            if (debugEnabled) {
+              console.info(
+                "[Staff dashboard] school resolution resolved",
+                JSON.stringify({
+                  selectedSchoolCandidate,
+                  schoolId: schoolIdToUse,
+                  resolvedSchoolName: fallbackSchool.name,
+                  source: "default-fallback",
+                }),
+              );
+            }
+          } else {
+            if (debugEnabled) {
+              console.error(
+                "[Staff dashboard] school resolution failed",
+                JSON.stringify({
+                  selectedSchoolCandidate,
+                  fallbackSchoolId: DEFAULT_SCHOOL_ID,
+                  reason: "default-school-not-found",
+                }),
+              );
+            }
+
+            if (!isCurrent) {
+              return;
+            }
+
+            setLoadErrorKey("staff.schoolLoadError");
+            setStatus("error");
+            return;
+          }
+        } else {
+          if (debugEnabled) {
+            console.info(
+              "[Staff dashboard] school resolution resolved",
+              JSON.stringify({
+                selectedSchoolCandidate,
+                schoolId: schoolIdToUse,
+                source: "default",
+              }),
+            );
+          }
+        }
+      } catch (error) {
+        if (debugEnabled) {
+          console.error(
+            "[Staff dashboard] school resolution failed",
+            JSON.stringify({
+              selectedSchoolCandidate,
+              schoolId: schoolIdToUse,
+              errorMessage: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        }
+
+        if (!isCurrent) {
+          return;
+        }
+
+        setLoadErrorKey("staff.schoolLoadError");
+        setStatus("error");
+        return;
+      }
+
+      if (!isCurrent) {
+        return;
+      }
+
+      setResolvedSchoolId(schoolIdToUse);
+
+      if (debugEnabled) {
+        console.info(
+          "[Staff dashboard] events query started",
+          JSON.stringify({ schoolId: schoolIdToUse }),
+        );
+      }
+
+      try {
+        const nextEvents = await repositories.meetingRepository.listEvents(
+          schoolIdToUse,
+        );
+
         if (!isCurrent) {
           return;
         }
@@ -55,19 +205,43 @@ export function StaffDashboardPage() {
           currentEventId || printableEvents[0]?.id || "",
         );
         setStatus("ready");
-      })
-      .catch(() => {
+
+        if (debugEnabled) {
+          console.info(
+            "[Staff dashboard] events query resolved",
+            JSON.stringify({
+              schoolId: schoolIdToUse,
+              eventsCount: nextEvents.length,
+              printableEventsCount: printableEvents.length,
+            }),
+          );
+        }
+      } catch (error) {
         if (!isCurrent) {
           return;
         }
 
+        if (debugEnabled) {
+          console.error(
+            "[Staff dashboard] events query failed",
+            JSON.stringify({
+              schoolId: schoolIdToUse,
+              errorMessage: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        }
+
+        setLoadErrorKey("staff.eventsLoadError");
         setStatus("error");
-      });
+      }
+    }
+
+    void loadDashboard();
 
     return () => {
       isCurrent = false;
     };
-  }, []);
+  }, [adminSchoolHydrated, adminSchoolId]);
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedEventId) ?? null,
@@ -130,21 +304,71 @@ export function StaffDashboardPage() {
 
     setStudentSearchStatus("loading");
     try {
+      if (import.meta.env.DEV === true) {
+        console.info(
+          "[Staff dashboard] student lookup started",
+          JSON.stringify({
+            schoolId: resolvedSchoolId,
+            meetingCode: selectedEvent.code,
+            schoolNumber: normalizedSchoolNumber,
+          }),
+        );
+      }
+
       const foundStudent = await repositories.studentRepository.findBySchoolNumber({
         meetingCode: selectedEvent.code,
         schoolNumber: normalizedSchoolNumber,
       });
 
       if (!foundStudent) {
+        if (import.meta.env.DEV === true) {
+          console.info(
+            "[Staff dashboard] student lookup resolved",
+            JSON.stringify({
+              schoolId: resolvedSchoolId,
+              meetingCode: selectedEvent.code,
+              schoolNumber: normalizedSchoolNumber,
+              found: false,
+            }),
+          );
+        }
+
         setStudent(null);
         setStudentSearchStatus("error");
         setStudentSearchError(t("staff.studentNotFound"));
         return;
       }
 
+      if (import.meta.env.DEV === true) {
+        console.info(
+          "[Staff dashboard] student lookup resolved",
+          JSON.stringify({
+            schoolId: resolvedSchoolId,
+            meetingCode: selectedEvent.code,
+            schoolNumber: normalizedSchoolNumber,
+            found: true,
+            studentId: foundStudent.id,
+            studentSchoolId: foundStudent.schoolId,
+            classId: foundStudent.classId,
+          }),
+        );
+      }
+
       setStudent(foundStudent);
       setStudentSearchStatus("success");
-    } catch {
+    } catch (error) {
+      if (import.meta.env.DEV === true) {
+        console.error(
+          "[Staff dashboard] student lookup failed",
+          JSON.stringify({
+            schoolId: resolvedSchoolId,
+            meetingCode: selectedEvent.code,
+            schoolNumber: normalizedSchoolNumber,
+            errorMessage: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      }
+
       setStudent(null);
       setStudentSearchStatus("error");
       setStudentSearchError(t("staff.studentSearchError"));
@@ -173,7 +397,7 @@ export function StaffDashboardPage() {
         <SchoolHeader />
         <section className="surface my-auto p-6 text-center">
           <p className="status-danger rounded-2xl px-4 py-3 text-sm font-bold">
-            {t("staff.loadError")}
+            {t(loadErrorKey)}
           </p>
         </section>
       </div>

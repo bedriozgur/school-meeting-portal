@@ -8,7 +8,7 @@ export function ProtectedStaffRoute() {
   const hasHydrated = useStaffSessionStore((state) => state.hasHydrated);
   const isAuthenticated = useStaffSessionStore((state) => state.isAuthenticated);
 
-  if (!hasHydrated) {
+  if (!hasHydrated && !isAuthenticated) {
     return (
       <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-3xl flex-col gap-8">
         <SchoolHeader />

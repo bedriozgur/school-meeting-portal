@@ -28,6 +28,8 @@
   "staff.signOut": "Çıkış yap",
   "staff.loading": "Yükleniyor",
   "staff.loadError": "Personel paneli yüklenemedi.",
+  "staff.schoolLoadError": "Seçilen okul personel portalı için yüklenemedi.",
+  "staff.eventsLoadError": "Toplantı listesi personel portalı için yüklenemedi.",
   "staff.eventsEyebrow": "Toplantılar",
   "staff.eventsTitle": "Aktif ve taslak etkinlikler",
   "staff.eventsDescription": "Bir toplantıyı arayın ve seçin; ardından QR hedefini görüntüleyin.",

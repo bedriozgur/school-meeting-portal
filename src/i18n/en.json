@@ -28,6 +28,8 @@
   "staff.signOut": "Sign out",
   "staff.loading": "Loading",
   "staff.loadError": "Staff dashboard could not be loaded.",
+  "staff.schoolLoadError": "The selected school could not be loaded for the staff portal.",
+  "staff.eventsLoadError": "The meeting list could not be loaded for the staff portal.",
   "staff.eventsEyebrow": "Meetings",
   "staff.eventsTitle": "Active and draft events",
   "staff.eventsDescription": "Search and select a meeting to show its QR target.",
