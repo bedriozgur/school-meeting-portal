@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  getCountFromServer,
   doc,
   getDoc,
   getDocs,
@@ -47,6 +48,14 @@ export const firestoreStudentRepository: StudentRepository = {
     );
 
     return students;
+  },
+  async countStudents() {
+    const db = requireFirestore();
+    const snapshot = await getCountFromServer(
+      query(collection(db, "students"), where("schoolId", "==", DEFAULT_SCHOOL_ID)),
+    );
+
+    return snapshot.data().count;
   },
   async getStudentById(studentId) {
     const db = requireFirestore();

@@ -23,6 +23,7 @@ import type {
 export type MeetingRepository = {
   findByCode: (meetingCode: string) => Promise<MeetingEvent | null>;
   listEvents: () => Promise<MeetingEvent[]>;
+  countEvents: () => Promise<number>;
   getEventById: (eventId: string) => Promise<MeetingEvent | null>;
   getEventAssignments: (
     eventId: string,
@@ -47,6 +48,7 @@ export type MeetingRepository = {
 export type TeachingAssignmentRepository = {
   listTeachingAssignmentsForClass: (classId: string) => Promise<TeachingAssignment[]>;
   listTeachingAssignmentsForTeacher: (teacherId: string) => Promise<TeachingAssignment[]>;
+  countTeachingAssignments: () => Promise<number>;
   getTeachingAssignmentById: (teachingAssignmentId: string) => Promise<TeachingAssignment | null>;
   createTeachingAssignment: (
     input: TeachingAssignmentFormInput,
@@ -78,6 +80,7 @@ export type EventTeacherSetupRepository = {
 
 export type ClassRepository = {
   listClasses: () => Promise<SchoolClass[]>;
+  countClasses: () => Promise<number>;
   getClassById: (classId: string) => Promise<SchoolClass | null>;
   createClass: (input: ClassFormInput) => Promise<SchoolClass>;
   updateClass: (
@@ -91,6 +94,7 @@ export type ClassRepository = {
 
 export type TeacherRepository = {
   listTeachers: () => Promise<Teacher[]>;
+  countTeachers: () => Promise<number>;
   getTeacherById: (teacherId: string) => Promise<Teacher | null>;
   createTeacher: (input: TeacherFormInput) => Promise<Teacher>;
   updateTeacher: (
@@ -107,6 +111,7 @@ export type AssignmentRepository = {
 
 export type StudentRepository = {
   listStudents: () => Promise<Student[]>;
+  countStudents: () => Promise<number>;
   getStudentById: (studentId: string) => Promise<Student | null>;
   createStudent: (input: StudentFormInput) => Promise<Student>;
   updateStudent: (

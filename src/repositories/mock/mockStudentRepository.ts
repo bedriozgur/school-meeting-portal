@@ -7,6 +7,9 @@ export const mockStudentRepository: StudentRepository = {
   async listStudents() {
     return mockStudents;
   },
+  async countStudents() {
+    return mockStudents.length;
+  },
   async getStudentById(studentId) {
     return mockStudents.find((student) => student.id === studentId) ?? null;
   },

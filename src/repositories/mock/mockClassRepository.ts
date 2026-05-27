@@ -6,6 +6,9 @@ export const mockClassRepository: ClassRepository = {
   async listClasses() {
     return mockClasses;
   },
+  async countClasses() {
+    return mockClasses.length;
+  },
   async getClassById(classId) {
     return mockClasses.find((schoolClass) => schoolClass.id === classId) ?? null;
   },

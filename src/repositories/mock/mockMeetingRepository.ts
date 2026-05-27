@@ -35,6 +35,9 @@ export const mockMeetingRepository: MeetingRepository = {
   async listEvents() {
     return mockMeetingEvents;
   },
+  async countEvents() {
+    return mockMeetingEvents.length;
+  },
   async getEventById(eventId) {
     return mockMeetingEvents.find((event) => event.id === eventId) ?? null;
   },

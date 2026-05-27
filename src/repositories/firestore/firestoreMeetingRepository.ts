@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  getCountFromServer,
   doc,
   getDoc,
   getDocs,
@@ -63,6 +64,14 @@ export const firestoreMeetingRepository: MeetingRepository = {
         eventDocument.data() as FirestoreEventDocument,
       ),
     );
+  },
+  async countEvents() {
+    const db = requireFirestore();
+    const snapshot = await getCountFromServer(
+      query(collection(db, "events"), where("schoolId", "==", DEFAULT_SCHOOL_ID)),
+    );
+
+    return snapshot.data().count;
   },
   async getEventById(eventId) {
     const db = requireFirestore();

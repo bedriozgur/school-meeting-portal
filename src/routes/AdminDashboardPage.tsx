@@ -1,12 +1,12 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { useT } from "../hooks/useT";
-import { usePilotReadiness } from "../features/pilot/usePilotReadiness";
+import { usePilotReadinessSummary } from "../features/pilot/usePilotReadiness";
 
 export function AdminDashboardPage() {
   const { signOut, user } = useAuth();
   const { t } = useT();
-  const { status, data } = usePilotReadiness();
+  const { status, data } = usePilotReadinessSummary();
 
   const summary = status === "ready" && data
     ? {

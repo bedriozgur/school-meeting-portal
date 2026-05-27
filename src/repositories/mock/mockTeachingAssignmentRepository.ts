@@ -19,6 +19,9 @@ export const mockTeachingAssignmentRepository: TeachingAssignmentRepository = {
   async listTeachingAssignmentsForTeacher(teacherId) {
     return getTeachingAssignmentsForTeacher(teacherId);
   },
+  async countTeachingAssignments() {
+    return mockTeachingAssignments.length;
+  },
   async getTeachingAssignmentById(teachingAssignmentId) {
     return (
       mockTeachingAssignments.find(

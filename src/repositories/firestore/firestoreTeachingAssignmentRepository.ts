@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  getCountFromServer,
   deleteDoc,
   doc,
   getDoc,
@@ -90,6 +91,17 @@ export const firestoreTeachingAssignmentRepository: TeachingAssignmentRepository
     );
 
     return rows.sort(sortTeachingAssignments);
+  },
+  async countTeachingAssignments() {
+    const db = requireFirestore();
+    const snapshot = await getCountFromServer(
+      query(
+        collection(db, "teachingAssignments"),
+        where("schoolId", "==", DEFAULT_SCHOOL_ID),
+      ),
+    );
+
+    return snapshot.data().count;
   },
   async getTeachingAssignmentById(teachingAssignmentId) {
     const db = requireFirestore();

@@ -5,6 +5,9 @@ export const mockTeacherRepository: TeacherRepository = {
   async listTeachers() {
     return mockTeachers;
   },
+  async countTeachers() {
+    return mockTeachers.length;
+  },
   async getTeacherById(teacherId) {
     return mockTeachers.find((teacher) => teacher.id === teacherId) ?? null;
   },
