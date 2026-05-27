@@ -30,7 +30,7 @@ export function LandingPage() {
   return (
     <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-3xl flex-col px-0 sm:px-0">
       <div className="flex justify-end pt-1 sm:pt-0">
-        <LanguageSwitcher compact />
+        <LanguageSwitcher compact className="scale-[0.92] origin-top-right sm:scale-100" />
       </div>
 
       <section className="flex flex-1 items-center justify-center py-2 sm:py-4">
@@ -39,28 +39,28 @@ export function LandingPage() {
             {branding.logoUrl ? (
               <img
                 alt={t("app.logoAlt")}
-                className="h-32 w-32 rounded-[2rem] border border-[color:var(--color-border)] bg-white object-contain p-4 shadow-soft sm:h-36 sm:w-36"
+                className="h-40 w-40 rounded-[2rem] border border-[color:var(--color-border)] bg-white object-contain p-1 shadow-soft sm:h-48 sm:w-48 sm:p-1.5"
                 src={branding.logoUrl}
               />
             ) : (
               <div
                 aria-label={t("app.logoAlt")}
-                className="grid h-32 w-32 place-items-center rounded-[2rem] border border-[color:var(--color-border)] text-3xl font-black text-white shadow-soft sm:h-36 sm:w-36"
+                className="grid h-40 w-40 place-items-center rounded-[2rem] border border-[color:var(--color-border)] text-4xl font-black text-white shadow-soft sm:h-48 sm:w-48"
                 style={{ background: "var(--color-primary)" }}
               >
                 {t(branding.logoInitials)}
               </div>
             )}
-            <p className="text-strong text-xl font-black tracking-tight sm:text-2xl">
+            <p className="text-strong text-xl font-bold tracking-tight sm:text-2xl">
               {t(branding.schoolName)}
             </p>
           </div>
 
-          <div className="space-y-2">
-            <p className="label text-[10px] tracking-[0.24em]">
+          <div className="space-y-1.5">
+            <p className="label text-[9px] tracking-[0.28em] opacity-80">
               {t("landing.welcomeEyebrow")}
             </p>
-            <h1 className="heading text-balance text-2xl font-black leading-snug sm:text-3xl lg:text-[2.25rem]">
+            <h1 className="text-balance text-[1.5rem] font-medium leading-snug text-[color:var(--color-muted-text)] sm:text-[1.75rem] lg:text-3xl">
               {t(branding.welcomeTitle)}
             </h1>
           </div>
@@ -85,7 +85,7 @@ export function LandingPage() {
             </div>
           </form>
 
-          <footer className="pt-1">
+          <footer className="pt-0.5">
             <VersionBadge compact />
           </footer>
         </div>

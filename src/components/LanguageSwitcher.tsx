@@ -28,7 +28,9 @@ export function LanguageSwitcher({
       {languages.map((language) => (
         <button
           className={`rounded-full transition ${
-            compact ? "px-2.5 py-1.5 text-[11px] font-bold" : "px-3 py-2 text-sm font-extrabold"
+            compact
+              ? "px-2 py-1 text-[10px] font-bold"
+              : "px-3 py-2 text-sm font-extrabold"
           } ${
             activeLanguage === language
               ? "text-white"

@@ -21,7 +21,7 @@ export function VersionBadge({ compact = false, className = "" }: VersionBadgePr
     return (
       <div
         aria-label={timestampLabel ? `${badgeText} ${timestampLabel}` : badgeText}
-        className={`text-center text-[10px] font-medium leading-4 tracking-wide text-[color:var(--color-muted-text)] ${className}`}
+        className={`text-center text-[9px] font-medium leading-4 tracking-wide text-[color:var(--color-muted-text)] ${className}`}
         title={timestampLabel ? `${badgeText} · ${timestampLabel}` : badgeText}
       >
         <span>{badgeText}</span>
