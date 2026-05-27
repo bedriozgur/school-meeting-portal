@@ -51,6 +51,14 @@ export function usePilotReadiness() {
       repositories.studentRepository.listStudents(),
     ])
       .then(async ([events, teachers, classes, students]) => {
+        const assignmentsByClass = await Promise.all(
+          classes.map((schoolClass) =>
+            repositories.teachingAssignmentRepository.listTeachingAssignmentsForClass(
+              schoolClass.id,
+            ),
+          ),
+        );
+
         if (!isCurrent) {
           return;
         }
@@ -65,12 +73,6 @@ export function usePilotReadiness() {
             ),
           })),
         );
-        const assignments = await Promise.all(
-          events.map((event) =>
-            repositories.meetingRepository.getEventAssignments(event.id),
-          ),
-        );
-
         if (!isCurrent) {
           return;
         }
@@ -91,7 +93,7 @@ export function usePilotReadiness() {
             teachersCount: teachers.length,
             classesCount: classes.length,
             studentsCount: students.length,
-            assignmentsCount: assignments.flat().length,
+            assignmentsCount: assignmentsByClass.flat().length,
             staffPortalConfigured: isStaffPortalConfigured(),
             adminAuthConfigured: isAllowlistedAdmin || hasAdminClaim,
             activeDraftReadiness,

@@ -5,209 +5,290 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   query,
   serverTimestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
 import type {
-  EventAssignmentBulkUpsertResult,
-  EventAssignmentInput,
-  EventAssignmentOverview,
+  EventTeacherSetupBulkUpsertResult,
+  EventTeacherSetupFormInput,
+  EventTeacherSetupOverview,
 } from "../../domain/models";
 import { DEFAULT_SCHOOL_ID } from "../../config/school";
 import type { AssignmentRepository } from "../interfaces";
-import { getClassById, getTeacherById, requireFirestore } from "./firestoreLookups";
-import type { FirestoreMeetingAssignmentDocument } from "./firestoreTypes";
+import { mapEventTeacherSetupOverview } from "./firestoreMappers";
+import {
+  getTeacherByIdOrNull,
+  getTeachingAssignmentsForClass,
+  requireFirestore,
+} from "./firestoreLookups";
+import type { FirestoreEventTeacherSetupDocument } from "./firestoreTypes";
 
 export const firestoreAssignmentRepository: AssignmentRepository = {
   async listEventAssignments(eventId) {
-    return getAssignmentsForEvent(eventId);
+    const db = requireFirestore();
+    const eventSnapshot = await getDoc(doc(db, "events", eventId));
+
+    if (!eventSnapshot.exists()) {
+      return [];
+    }
+
+    const event = eventSnapshot.data() as { includedClasses?: string[] };
+    const teachingAssignments = await Promise.all(
+      (event.includedClasses ?? []).map((classId) =>
+        getTeachingAssignmentsForClass(db, classId),
+      ),
+    );
+    const teacherSubjectById = new Map<string, string>();
+
+    teachingAssignments.flat().forEach((assignment) => {
+      if (!assignment.isActive) {
+        return;
+      }
+      if (!teacherSubjectById.has(assignment.teacherId)) {
+        teacherSubjectById.set(assignment.teacherId, assignment.subject);
+      }
+    });
+
+    const setupsSnapshot = await getDocs(
+      query(
+        collection(db, "eventTeacherSetups"),
+        where("eventId", "==", eventId),
+        limit(100),
+      ),
+    );
+    const setupByTeacherId = new Map(
+      setupsSnapshot.docs.map((setupDocument) => [
+        (setupDocument.data() as FirestoreEventTeacherSetupDocument).teacherId ??
+          "",
+        {
+          id: setupDocument.id,
+          data: setupDocument.data() as FirestoreEventTeacherSetupDocument,
+        },
+      ]),
+    );
+
+    const rows = await Promise.all(
+      [...teacherSubjectById.entries()].map(async ([teacherId, subject]) => {
+        const teacher = await getTeacherByIdOrNull(db, teacherId);
+
+        if (!teacher) {
+          return null;
+        }
+
+        const setup = setupByTeacherId.get(teacherId);
+
+        if (!setup) {
+          return mapEventTeacherSetupOverview({
+            id: `missing-${eventId}-${teacherId}`,
+            setupData: {
+              eventId,
+              schoolId: DEFAULT_SCHOOL_ID,
+              teacherId,
+              building: "",
+              floor: 0,
+              classroom: "",
+              isAvailable: false,
+            },
+            teacher,
+            subject,
+          });
+        }
+
+        return mapEventTeacherSetupOverview({
+          id: setup.id,
+          setupData: setup.data,
+          teacher,
+          subject,
+        });
+      }),
+    );
+
+    return rows
+      .filter((row): row is EventTeacherSetupOverview => Boolean(row))
+      .sort(sortEventSetups);
   },
   async createEventAssignment(input) {
     const db = requireFirestore();
-    await assertNoDuplicate(input);
-    const assignmentData = toFirestoreAssignment(input, true);
+    await assertNoDuplicate(db, input);
+    await ensureTeacherExists(db, input.teacherId);
+    const assignmentData = toFirestoreEventTeacherSetup(input, true);
     const assignmentRef = await addDoc(
-      collection(db, "meetingAssignments"),
+      collection(db, "eventTeacherSetups"),
       assignmentData,
     );
 
-    return buildAssignmentOverview(db, assignmentRef.id, assignmentData);
+    const teacher = await getTeacherByIdOrNull(db, input.teacherId);
+    if (!teacher) {
+      throw new Error(`Teacher not found: ${input.teacherId}`);
+    }
+
+    return mapEventTeacherSetupOverview({
+      id: assignmentRef.id,
+      setupData: assignmentData,
+      teacher,
+      subject: teacher.subject,
+    });
   },
   async updateEventAssignment(assignmentId, input) {
     const db = requireFirestore();
-    const assignmentRef = doc(db, "meetingAssignments", assignmentId);
+    const assignmentRef = doc(db, "eventTeacherSetups", assignmentId);
     const snapshot = await getDoc(assignmentRef);
 
     if (!snapshot.exists()) {
-      throw new Error(`Assignment not found: ${assignmentId}`);
+      throw new Error(`Event teacher setup not found: ${assignmentId}`);
     }
 
-    await assertNoDuplicate(input, assignmentId);
+    await assertNoDuplicate(db, input, assignmentId);
+    await ensureTeacherExists(db, input.teacherId);
     const assignmentData = {
-      ...toFirestoreAssignment(input, false),
+      ...toFirestoreEventTeacherSetup(input, false),
       updatedAt: serverTimestamp(),
     };
     await updateDoc(assignmentRef, assignmentData);
 
-    return buildAssignmentOverview(
-      db,
-      assignmentId,
-      assignmentData as FirestoreMeetingAssignmentDocument,
-    );
+    const teacher = await getTeacherByIdOrNull(db, input.teacherId);
+    if (!teacher) {
+      throw new Error(`Teacher not found: ${input.teacherId}`);
+    }
+
+    return mapEventTeacherSetupOverview({
+      id: assignmentId,
+      setupData: {
+        ...(snapshot.data() as FirestoreEventTeacherSetupDocument),
+        ...assignmentData,
+      },
+      teacher,
+      subject: teacher.subject,
+    });
   },
   async deleteEventAssignment(assignmentId) {
     const db = requireFirestore();
-    await deleteDoc(doc(db, "meetingAssignments", assignmentId));
+    await deleteDoc(doc(db, "eventTeacherSetups", assignmentId));
   },
   async bulkUpsertEventAssignments(inputs) {
     const db = requireFirestore();
     const uniqueInputs = dedupeInputs(inputs);
-    const groupedInputs = groupByEventId(uniqueInputs);
+    const existingSnapshot = await getDocs(
+      query(
+        collection(db, "eventTeacherSetups"),
+        where("schoolId", "==", DEFAULT_SCHOOL_ID),
+        limit(100),
+      ),
+    );
+    const existing = existingSnapshot.docs.map((assignmentDocument) => ({
+      id: assignmentDocument.id,
+      data: assignmentDocument.data() as FirestoreEventTeacherSetupDocument,
+    }));
+    const eventTeacherSetups: EventTeacherSetupOverview[] = [];
     let created = 0;
     let updated = 0;
-    const assignments: EventAssignmentOverview[] = [];
 
-    for (const [eventId, eventInputs] of groupedInputs) {
-      const existingAssignments = await loadAssignmentsForEvent(db, eventId);
+    for (const input of uniqueInputs) {
+      const match = existing.find((setup) =>
+        setup.data.eventId === input.eventId &&
+        setup.data.teacherId === input.teacherId,
+      );
 
-      for (const input of eventInputs) {
-        const matchingAssignment = existingAssignments.find((assignment) =>
-          isSameAssignmentKey(assignment.data, input),
-        );
-
-        if (matchingAssignment) {
-          const updatedData = {
-            ...toFirestoreAssignment(input, false),
-            updatedAt: serverTimestamp(),
-          };
-          await updateDoc(matchingAssignment.ref, updatedData);
-          updated += 1;
-          assignments.push(
-            await buildAssignmentOverview(db, matchingAssignment.ref.id, {
-              ...matchingAssignment.data,
-              ...updatedData,
-            } as FirestoreMeetingAssignmentDocument),
-          );
-          continue;
+      if (match) {
+        const updatedData = {
+          ...toFirestoreEventTeacherSetup(input, false),
+          updatedAt: serverTimestamp(),
+        };
+        await updateDoc(doc(db, "eventTeacherSetups", match.id), updatedData);
+        updated += 1;
+        const teacher = await getTeacherByIdOrNull(db, input.teacherId);
+        if (!teacher) {
+          throw new Error(`Teacher not found: ${input.teacherId}`);
         }
-
-        const assignmentData = toFirestoreAssignment(input, true);
-        const assignmentRef = await addDoc(
-          collection(db, "meetingAssignments"),
-          assignmentData,
+        eventTeacherSetups.push(
+          mapEventTeacherSetupOverview({
+            id: match.id,
+            setupData: {
+              ...match.data,
+              ...updatedData,
+            },
+            teacher,
+            subject: teacher.subject,
+          }),
         );
-        created += 1;
-        assignments.push(
-          await buildAssignmentOverview(db, assignmentRef.id, assignmentData),
-        );
+        continue;
       }
+
+      const setupData = toFirestoreEventTeacherSetup(input, true);
+      const setupRef = await addDoc(collection(db, "eventTeacherSetups"), setupData);
+      created += 1;
+      const teacher = await getTeacherByIdOrNull(db, input.teacherId);
+      if (!teacher) {
+        throw new Error(`Teacher not found: ${input.teacherId}`);
+      }
+      eventTeacherSetups.push(
+        mapEventTeacherSetupOverview({
+          id: setupRef.id,
+          setupData,
+          teacher,
+          subject: teacher.subject,
+        }),
+      );
     }
 
-    return {
-      created,
-      updated,
-      assignments,
-    } satisfies EventAssignmentBulkUpsertResult;
+    return { created, updated, eventTeacherSetups } satisfies EventTeacherSetupBulkUpsertResult;
   },
 };
 
-async function getAssignmentsForEvent(eventId: string) {
-  const db = requireFirestore();
-  const snapshot = await loadAssignmentsForEvent(db, eventId);
-  const rows = await Promise.all(
-    snapshot.map((assignmentDocument) =>
-      buildAssignmentOverview(
-        db,
-        assignmentDocument.id,
-        assignmentDocument.data,
-      ),
-    ),
-  );
-
-  return rows.sort(sortAssignmentOverview);
-}
-
-async function assertNoDuplicate(
-  input: EventAssignmentInput,
-  excludingAssignmentId?: string,
-) {
-  const db = requireFirestore();
-  const assignments = await loadAssignmentsForEvent(db, input.eventId);
-  const duplicate = assignments.some(
-    (assignment) =>
-      assignment.id !== excludingAssignmentId &&
-      isSameAssignmentKey(assignment.data, input),
-  );
-
-  if (duplicate) {
-    throw new Error("Duplicate assignment.");
-  }
-}
-
-async function loadAssignmentsForEvent(
-  db: ReturnType<typeof requireFirestore>,
-  eventId: string,
-) {
-  const snapshot = await getDocs(
-    query(collection(db, "meetingAssignments"), where("eventId", "==", eventId)),
-  );
-
-  return snapshot.docs.map((assignmentDocument) => ({
-    id: assignmentDocument.id,
-    data: assignmentDocument.data() as FirestoreMeetingAssignmentDocument,
-    ref: assignmentDocument.ref,
-  }));
-}
-
-async function buildAssignmentOverview(
-  db: ReturnType<typeof requireFirestore>,
-  id: string,
-  assignmentData: FirestoreMeetingAssignmentDocument,
-): Promise<EventAssignmentOverview> {
-  const [classData, teacher] = await Promise.all([
-    getClassById(db, assignmentData.classId ?? ""),
-    getTeacherById(db, assignmentData.teacherId ?? ""),
-  ]);
-
-  return {
-    id,
-    classId: assignmentData.classId ?? "",
-    className: classData.name ?? "",
-    teacher,
-    subject: assignmentData.subject ?? "",
-    building: assignmentData.building ?? "",
-    floor: assignmentData.floor ?? 0,
-    classroom: assignmentData.classroom ?? "",
-    availability: assignmentData.isAvailable ? "available" : "busy",
-  };
-}
-
-function toFirestoreAssignment(
-  input: EventAssignmentInput,
+function toFirestoreEventTeacherSetup(
+  input: EventTeacherSetupFormInput,
   includeCreatedAt: boolean,
 ) {
   return {
     eventId: input.eventId,
     schoolId: DEFAULT_SCHOOL_ID,
     teacherId: input.teacherId,
-    classId: input.classId,
-    subject: input.subject,
-    building: input.building,
+    building: input.building.trim(),
     floor: input.floor,
-    classroom: input.classroom,
-    isAvailable: input.availability !== "busy",
+    classroom: input.classroom.trim(),
+    isAvailable: input.isAvailable,
     ...(includeCreatedAt ? { createdAt: serverTimestamp() } : {}),
     updatedAt: serverTimestamp(),
   };
 }
 
-function dedupeInputs(inputs: EventAssignmentInput[]) {
+async function ensureTeacherExists(db: ReturnType<typeof requireFirestore>, teacherId: string) {
+  const teacher = await getTeacherByIdOrNull(db, teacherId);
+
+  if (!teacher) {
+    throw new Error(`Teacher not found: ${teacherId}`);
+  }
+}
+
+async function assertNoDuplicate(
+  db: ReturnType<typeof requireFirestore>,
+  input: EventTeacherSetupFormInput,
+  excludingAssignmentId?: string,
+) {
+  const snapshot = await getDocs(
+    query(
+      collection(db, "eventTeacherSetups"),
+      where("eventId", "==", input.eventId),
+      where("teacherId", "==", input.teacherId),
+    ),
+  );
+  const duplicate = snapshot.docs.some((assignmentDocument) =>
+    assignmentDocument.id !== excludingAssignmentId,
+  );
+
+  if (duplicate) {
+    throw new Error("Duplicate event teacher setup.");
+  }
+}
+
+function dedupeInputs(inputs: EventTeacherSetupFormInput[]) {
   const seen = new Set<string>();
 
   return inputs.filter((input) => {
-    const key = assignmentKey(input);
+    const key = [input.eventId, input.teacherId].join("|");
 
     if (seen.has(key)) {
       return false;
@@ -218,53 +299,10 @@ function dedupeInputs(inputs: EventAssignmentInput[]) {
   });
 }
 
-function groupByEventId(inputs: EventAssignmentInput[]) {
-  const grouped = new Map<string, EventAssignmentInput[]>();
-
-  inputs.forEach((input) => {
-    grouped.set(input.eventId, [...(grouped.get(input.eventId) ?? []), input]);
-  });
-
-  return grouped;
-}
-
-function assignmentKey(input: EventAssignmentInput) {
-  return [
-    input.eventId,
-    input.classId,
-    input.teacherId,
-    input.subject.trim().toLocaleLowerCase("tr"),
-  ].join("|");
-}
-
-function isSameAssignmentKey(
-  assignment: FirestoreMeetingAssignmentDocument,
-  input: EventAssignmentInput,
+function sortEventSetups(
+  left: EventTeacherSetupOverview,
+  right: EventTeacherSetupOverview,
 ) {
-  return assignmentKey({
-    eventId: assignment.eventId ?? "",
-    classId: assignment.classId ?? "",
-    teacherId: assignment.teacherId ?? "",
-    subject: assignment.subject ?? "",
-    building: assignment.building ?? "",
-    floor: assignment.floor ?? 0,
-    classroom: assignment.classroom ?? "",
-    availability: assignment.isAvailable ? "available" : "busy",
-  }) === assignmentKey(input);
-}
-
-function sortAssignmentOverview(
-  left: EventAssignmentOverview,
-  right: EventAssignmentOverview,
-) {
-  const className = left.className.localeCompare(right.className, "tr", {
-    numeric: true,
-  });
-
-  if (className !== 0) {
-    return className;
-  }
-
   const building = left.building.localeCompare(right.building, "tr");
 
   if (building !== 0) {
@@ -275,7 +313,9 @@ function sortAssignmentOverview(
     return left.floor - right.floor;
   }
 
-  return left.classroom.localeCompare(right.classroom, "tr", {
-    numeric: true,
-  });
+  return left.classroom.localeCompare(right.classroom, "tr", { numeric: true });
+}
+
+function sortEventTeacherSetups(assignments: EventTeacherSetupOverview[]) {
+  return [...assignments].sort(sortEventSetups);
 }

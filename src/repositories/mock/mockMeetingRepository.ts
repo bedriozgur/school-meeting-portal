@@ -8,13 +8,16 @@ import { buildEventReadiness } from "../eventReadiness";
 import {
   mockMeetingEvents,
   mockClasses,
+  mockTeachers,
+  mockEventTeacherSetups,
 } from "./mockData";
-import { getAssignmentsForEvent } from "./mockAssignmentRepository";
+import { getTeachingAssignmentsForClass } from "./mockTeachingAssignmentRepository";
+import { getEventTeacherSetupsForEvent } from "./mockAssignmentRepository";
 import {
   generateUniqueMeetingCode,
   normalizeMeetingCode,
 } from "../meetingCodes";
-import type { EventFormInput } from "../../domain/models";
+import type { EventFormInput, EventTeacherSetupOverview } from "../../domain/models";
 
 export const mockMeetingRepository: MeetingRepository = {
   async findByCode(meetingCode) {
@@ -36,13 +39,24 @@ export const mockMeetingRepository: MeetingRepository = {
     return mockMeetingEvents.find((event) => event.id === eventId) ?? null;
   },
   async getEventAssignments(eventId) {
-    return getAssignmentsForEvent(eventId);
+    return buildEventTeacherAssignments(eventId);
   },
   async validateEventReadiness(eventId) {
+    const event = mockMeetingEvents.find((meeting) => meeting.id === eventId) ?? null;
     return buildEventReadiness({
-      event: mockMeetingEvents.find((event) => event.id === eventId) ?? null,
+      event,
       classes: mockClasses,
-      assignments: getAssignmentsForEvent(eventId),
+      teachers: mockTeachers,
+      teachingAssignments: event
+        ? event.includedClasses.flatMap((classId) =>
+            getTeachingAssignmentsForClass(classId).filter(
+              (assignment) => assignment.isActive,
+            ),
+          )
+        : [],
+      eventTeacherSetups: mockEventTeacherSetups.filter(
+        (setup) => setup.eventId === eventId,
+      ),
     });
   },
   async isMeetingCodeAvailable(meetingCode, excludingEventId) {
@@ -158,4 +172,61 @@ function getClassNames(classIds: string[]) {
       mockClasses.find((schoolClass) => schoolClass.id === classId)?.name ??
       classId,
   );
+}
+
+function buildEventTeacherAssignments(eventId: string) {
+  const event = mockMeetingEvents.find((meeting) => meeting.id === eventId);
+
+  if (!event) {
+    return [];
+  }
+
+  const teachingAssignments = event.includedClasses.flatMap((classId) =>
+    getTeachingAssignmentsForClass(classId),
+  );
+  const teacherSubjectById = new Map<string, string>();
+
+  teachingAssignments.forEach((assignment) => {
+    if (!assignment.isActive) {
+      return;
+    }
+    if (!teacherSubjectById.has(assignment.teacherId)) {
+      teacherSubjectById.set(assignment.teacherId, assignment.subject);
+    }
+  });
+
+  const setupByTeacherId = new Map(
+    getEventTeacherSetupsForEvent(eventId).map((setup) => [
+      setup.teacher.id,
+      setup,
+    ] as const),
+  );
+
+  return [...teacherSubjectById.entries()]
+    .map<EventTeacherSetupOverview | null>(([teacherId, subject]) => {
+      const teacher = mockTeachers.find((currentTeacher) => currentTeacher.id === teacherId);
+      if (!teacher) {
+        return null;
+      }
+
+      const setup = setupByTeacherId.get(teacherId);
+
+      return {
+        id: setup?.id ?? `missing-setup-${eventId}-${teacherId}`,
+        teacher,
+        subject,
+        building: setup?.building ?? "",
+        floor: setup?.floor ?? 0,
+        classroom: setup?.classroom ?? "",
+        availability: setup?.availability ?? ("busy" as const),
+        locationMissing: !setup,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .sort((left, right) => {
+      const building = left.building.localeCompare(right.building, "tr");
+      if (building !== 0) return building;
+      if (left.floor !== right.floor) return left.floor - right.floor;
+      return left.classroom.localeCompare(right.classroom, "tr", { numeric: true });
+    });
 }

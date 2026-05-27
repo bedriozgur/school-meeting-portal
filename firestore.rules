@@ -24,6 +24,16 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /teachingAssignments/{teachingAssignmentId} {
+      // School-level teaching assignments are reusable master data. The
+      // parent flow loads them through a limited query after the student and
+      // event have already been resolved. Firestore rules cannot verify the
+      // exact join logic, so the query limit is the practical guardrail here.
+      allow list: if isAdmin() || isReasonableLimitedQuery(100);
+      allow get: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
     match /events/{eventId} {
       // Supports MeetingRepository.findByCode(meetingCode), which queries by
       // meetingCode and active/draft status. Firestore rules are not filters:
@@ -67,14 +77,12 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    match /meetingAssignments/{assignmentId} {
-      // Supports ParentMeetingRepository.getParentMeetingView(), which queries
-      // assignments by eventId, schoolId, and classId. Firestore rules cannot
-      // prove those exact where clauses from the rules language. The query
-      // limit caps accidental broad reads, but future hardening should make
-      // assignments addressable under an event/class path or use a tokenized
-      // parent view document.
-      allow list: if isAdmin() || isReasonableLimitedQuery(50);
+    match /eventTeacherSetups/{eventTeacherSetupId} {
+      // Event-specific teacher setup data is loaded by the parent flow through
+      // a limited query after the event is resolved. The query limit is the
+      // practical guardrail because Firestore rules cannot verify the exact
+      // where clauses used by the repository join.
+      allow list: if isAdmin() || isReasonableLimitedQuery(100);
       allow get: if isAdmin();
       allow create, update, delete: if isAdmin();
     }

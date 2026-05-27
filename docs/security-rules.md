@@ -23,7 +23,8 @@ The application repository layer performs the complete event-scoped validation.
 - `students`: public list only with `limit <= 1`, supporting student-number lookup. Direct document get is denied.
 - `classes`: public get only, needed after a valid student lookup to show class and grade.
 - `teachers`: public get only, needed to show teacher cards and class teacher names.
-- `meetingAssignments`: public list only with `limit <= 50`, needed to load teacher assignments for a class/event.
+- `teachingAssignments`: public list only with `limit <= 100` for the parent flow's class-teacher-subject join, including default-subject rows and subject overrides, plus admin writes.
+- `eventTeacherSetups`: public list only with `limit <= 100` for the parent flow's event-specific location join, plus admin writes.
 - `schools`: public get only, needed to show school context.
 
 All public writes are denied. Admin writes require an authenticated ID token with `admin: true`.
@@ -43,7 +44,7 @@ The current rules reduce accidental broad reads by denying direct student and as
 ## Risks Remaining In V1
 
 - A user who knows the Firebase config can attempt limited student-number enumeration.
-- Assignment queries are limited but still public for the current read-only flow.
+- Assignment data is only publicly readable through limited list queries. The parent flow combines teaching assignments and event teacher setups through repository logic before rendering.
 - Teacher and class documents are publicly readable by known document ID.
 - Firestore composite indexes may be required for repository queries.
 - There is no App Check, staff authentication, rate limiting, or server-side lookup token yet.

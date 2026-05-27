@@ -1,7 +1,4 @@
 import type {
-  EventAssignmentOverview,
-  EventAssignmentBulkUpsertResult,
-  EventAssignmentInput,
   EventFormInput,
   ClassBulkUpsertResult,
   ClassFormInput,
@@ -15,6 +12,12 @@ import type {
   Teacher,
   TeacherBulkUpsertResult,
   TeacherFormInput,
+  EventTeacherSetupOverview,
+  EventTeacherSetupBulkUpsertResult,
+  EventTeacherSetupFormInput,
+  TeachingAssignment,
+  TeachingAssignmentBulkUpsertResult,
+  TeachingAssignmentFormInput,
 } from "../domain/models";
 
 export type MeetingRepository = {
@@ -23,7 +26,7 @@ export type MeetingRepository = {
   getEventById: (eventId: string) => Promise<MeetingEvent | null>;
   getEventAssignments: (
     eventId: string,
-  ) => Promise<EventAssignmentOverview[]>;
+  ) => Promise<EventTeacherSetupOverview[]>;
   validateEventReadiness: (eventId: string) => Promise<EventReadiness>;
   isMeetingCodeAvailable: (
     meetingCode: string,
@@ -39,6 +42,38 @@ export type MeetingRepository = {
     eventId: string,
     inputOverrides: EventFormInput,
   ) => Promise<MeetingEvent>;
+};
+
+export type TeachingAssignmentRepository = {
+  listTeachingAssignmentsForClass: (classId: string) => Promise<TeachingAssignment[]>;
+  listTeachingAssignmentsForTeacher: (teacherId: string) => Promise<TeachingAssignment[]>;
+  getTeachingAssignmentById: (teachingAssignmentId: string) => Promise<TeachingAssignment | null>;
+  createTeachingAssignment: (
+    input: TeachingAssignmentFormInput,
+  ) => Promise<TeachingAssignment>;
+  updateTeachingAssignment: (
+    teachingAssignmentId: string,
+    input: TeachingAssignmentFormInput,
+  ) => Promise<TeachingAssignment>;
+  deleteTeachingAssignment: (teachingAssignmentId: string) => Promise<void>;
+  bulkUpsertTeachingAssignments: (
+    inputs: TeachingAssignmentFormInput[],
+  ) => Promise<TeachingAssignmentBulkUpsertResult>;
+};
+
+export type EventTeacherSetupRepository = {
+  listEventAssignments: (eventId: string) => Promise<EventTeacherSetupOverview[]>;
+  createEventAssignment: (
+    input: EventTeacherSetupFormInput,
+  ) => Promise<EventTeacherSetupOverview>;
+  updateEventAssignment: (
+    assignmentId: string,
+    input: EventTeacherSetupFormInput,
+  ) => Promise<EventTeacherSetupOverview>;
+  deleteEventAssignment: (assignmentId: string) => Promise<void>;
+  bulkUpsertEventAssignments: (
+    inputs: EventTeacherSetupFormInput[],
+  ) => Promise<EventTeacherSetupBulkUpsertResult>;
 };
 
 export type ClassRepository = {
@@ -68,19 +103,7 @@ export type TeacherRepository = {
 };
 
 export type AssignmentRepository = {
-  listEventAssignments: (eventId: string) => Promise<EventAssignmentOverview[]>;
-  createEventAssignment: (
-    input: EventAssignmentInput,
-  ) => Promise<EventAssignmentOverview>;
-  updateEventAssignment: (
-    assignmentId: string,
-    input: EventAssignmentInput,
-  ) => Promise<EventAssignmentOverview>;
-  deleteEventAssignment: (assignmentId: string) => Promise<void>;
-  bulkUpsertEventAssignments: (
-    inputs: EventAssignmentInput[],
-  ) => Promise<EventAssignmentBulkUpsertResult>;
-};
+} & EventTeacherSetupRepository;
 
 export type StudentRepository = {
   listStudents: () => Promise<Student[]>;

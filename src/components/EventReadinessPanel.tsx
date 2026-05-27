@@ -4,17 +4,17 @@ import type { TranslationKey } from "../i18n/i18n";
 
 const readinessKeys: Record<EventReadinessCode, TranslationKey> = {
   noIncludedClasses: "admin.readiness.errorNoIncludedClasses",
-  classMissingAssignment: "admin.readiness.errorClassMissingAssignment",
-  assignmentMissingTeacher: "admin.readiness.errorAssignmentMissingTeacher",
-  assignmentMissingSubject: "admin.readiness.errorAssignmentMissingSubject",
-  assignmentMissingBuilding: "admin.readiness.errorAssignmentMissingBuilding",
-  assignmentMissingFloor: "admin.readiness.errorAssignmentMissingFloor",
-  assignmentMissingClassroom: "admin.readiness.errorAssignmentMissingClassroom",
-  assignmentInactiveTeacher: "admin.readiness.errorAssignmentInactiveTeacher",
+  classMissingTeachingAssignment: "admin.readiness.errorClassMissingAssignment",
+  teachingAssignmentMissingTeacher: "admin.readiness.errorAssignmentMissingTeacher",
+  teachingAssignmentMissingSubject: "admin.readiness.errorAssignmentMissingSubject",
+  teachingAssignmentInactiveTeacher: "admin.readiness.errorAssignmentInactiveTeacher",
   includedClassInactive: "admin.readiness.errorIncludedClassInactive",
+  eventTeacherSetupMissing: "admin.readiness.warningEventNoClassTeacher",
+  eventTeacherSetupMissingBuilding: "admin.readiness.errorAssignmentMissingBuilding",
+  eventTeacherSetupMissingFloor: "admin.readiness.errorAssignmentMissingFloor",
+  eventTeacherSetupMissingClassroom: "admin.readiness.errorAssignmentMissingClassroom",
   unavailableTeachers: "admin.readiness.warningUnavailableTeachers",
-  classOnlyOneAssignment: "admin.readiness.warningClassOnlyOneAssignment",
-  eventNoClassTeacher: "admin.readiness.warningEventNoClassTeacher",
+  classOnlyOneTeachingAssignment: "admin.readiness.warningClassOnlyOneAssignment",
 };
 
 type EventReadinessPanelProps = {

@@ -1,16 +1,9 @@
 import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import type { ParentMeetingRepository } from "../interfaces";
+import type { TeacherAssignment } from "../../domain/models";
 import { sortTeacherAssignments } from "../../utils/teachers";
-import { mapTeacherAssignment } from "./firestoreMappers";
-import type { FirestoreMeetingAssignmentDocument } from "./firestoreTypes";
-import {
-  findActiveOrDraftEventByCode,
-  findStudentForEvent,
-  getClassById,
-  getSchoolById,
-  getTeacherById,
-  requireFirestore,
-} from "./firestoreLookups";
+import { requireFirestore, findActiveOrDraftEventByCode, findStudentForEvent, getSchoolById, getClassById, getTeacherByIdOrNull, getTeachingAssignmentsForClass } from "./firestoreLookups";
+import type { FirestoreEventTeacherSetupDocument } from "./firestoreTypes";
 
 export const firestoreParentMeetingRepository: ParentMeetingRepository = {
   async getParentMeetingView({ meetingCode, schoolNumber }) {
@@ -31,35 +24,49 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
       return null;
     }
 
-    const [school, classData] = await Promise.all([
+    const [school, classData, teachingAssignments, setupSnapshot] = await Promise.all([
       getSchoolById(db, meetingEvent.schoolId),
       getClassById(db, student.classId),
+      getTeachingAssignmentsForClass(db, student.classId),
+      getDocs(
+        query(
+          collection(db, "eventTeacherSetups"),
+          where("eventId", "==", meetingEvent.id),
+          limit(100),
+        ),
+      ),
     ]);
     const classTeacher = classData.classTeacherId
-      ? await getTeacherById(db, classData.classTeacherId)
+      ? await getTeacherByIdOrNull(db, classData.classTeacherId)
       : null;
-    const assignmentsSnapshot = await getDocs(
-      query(
-        collection(db, "meetingAssignments"),
-        where("eventId", "==", meetingEvent.id),
-        where("schoolId", "==", meetingEvent.schoolId),
-        where("classId", "==", student.classId),
-        limit(50),
-      ),
+    const setupByTeacherId = new Map(
+      setupSnapshot.docs.map((setupDocument) => [
+        (setupDocument.data() as FirestoreEventTeacherSetupDocument).teacherId ?? "",
+        setupDocument.data() as FirestoreEventTeacherSetupDocument,
+      ] as const),
     );
-    const teacherAssignments = await Promise.all(
-      assignmentsSnapshot.docs.map(async (assignmentDocument) => {
-        const assignmentData =
-          assignmentDocument.data() as FirestoreMeetingAssignmentDocument;
-        const teacher = await getTeacherById(db, assignmentData.teacherId ?? "");
 
-        return mapTeacherAssignment({
-          id: assignmentDocument.id,
-          assignmentData,
-          teacher,
-        });
-      }),
-    );
+    const teacherAssignments: TeacherAssignment[] = [];
+    for (const assignment of teachingAssignments.filter((row) => row.isActive)) {
+      const teacherId = assignment.teacherId;
+      const teacher = await getTeacherByIdOrNull(db, teacherId);
+      if (!teacher) {
+        continue;
+      }
+
+      const setup = setupByTeacherId.get(teacherId);
+      teacherAssignments.push({
+        id: assignment.id,
+        teacher,
+        subject: assignment.subject,
+        subjectMissing: !assignment.subject.trim(),
+        building: setup?.building ?? "",
+        floor: setup?.floor ?? 0,
+        classroom: setup?.classroom ?? "",
+        availability: setup?.isAvailable ? ("available" as const) : ("busy" as const),
+        locationMissing: !setup,
+      });
+    }
 
     return {
       school,

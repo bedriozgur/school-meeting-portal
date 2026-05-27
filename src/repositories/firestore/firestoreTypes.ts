@@ -41,14 +41,28 @@ export type FirestoreTeacherDocument = {
   isActive?: boolean;
 };
 
-export type FirestoreMeetingAssignmentDocument = {
-  eventId?: string;
+export type FirestoreTeachingAssignmentDocument = {
   schoolId?: string;
-  teacherId?: string;
   classId?: string;
+  teacherId?: string;
   subject?: string;
+  subjectOverride?: string | null;
+  normalizedSubject?: string;
+  isActive?: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+};
+
+export type FirestoreEventTeacherSetupDocument = {
+  schoolId?: string;
+  eventId?: string;
+  teacherId?: string;
   building?: string;
   floor?: number;
   classroom?: string;
   isAvailable?: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 };
+
+export type FirestoreMeetingAssignmentDocument = FirestoreEventTeacherSetupDocument;

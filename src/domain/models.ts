@@ -68,6 +68,7 @@ export type ClassBulkUpsertResult = {
 
 export type Teacher = {
   id: string;
+  schoolId?: string;
   name: string;
   subject: string;
   isActive?: boolean;
@@ -85,6 +86,32 @@ export type TeacherBulkUpsertResult = {
   teachers: Teacher[];
 };
 
+export type TeachingAssignment = {
+  id: string;
+  schoolId: string;
+  classId: string;
+  teacherId: string;
+  subject: string;
+  subjectOverride?: string | null;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type TeachingAssignmentFormInput = {
+  classId: string;
+  teacherId: string;
+  subject?: string;
+  subjectOverride?: string | null;
+  isActive: boolean;
+};
+
+export type TeachingAssignmentBulkUpsertResult = {
+  created: number;
+  updated: number;
+  teachingAssignments: TeachingAssignment[];
+};
+
 export type EventFormInput = {
   meetingCode?: string;
   title: string;
@@ -94,44 +121,62 @@ export type EventFormInput = {
   includedClasses: string[];
 };
 
-export type EventAssignmentInput = {
+export type EventTeacherSetup = {
+  id: string;
+  schoolId: string;
   eventId: string;
-  classId: string;
   teacherId: string;
+  building: string;
+  floor: number;
+  classroom: string;
+  isAvailable: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type EventTeacherSetupFormInput = {
+  eventId: string;
+  teacherId: string;
+  building: string;
+  floor: number;
+  classroom: string;
+  isAvailable: boolean;
+};
+
+export type EventTeacherSetupBulkUpsertResult = {
+  created: number;
+  updated: number;
+  eventTeacherSetups: EventTeacherSetupOverview[];
+};
+
+export type EventTeacherSetupOverview = {
+  id: string;
+  teacher: Teacher;
   subject: string;
   building: string;
   floor: number;
   classroom: string;
   availability: Availability;
+  locationMissing?: boolean;
 };
 
 export type TeacherAssignment = {
   id: string;
   teacher: Teacher;
   subject: string;
+  subjectMissing?: boolean;
   building: string;
   floor: number;
   classroom: string;
   availability: Availability;
+  locationMissing?: boolean;
 };
 
-export type EventAssignmentOverview = {
-  id: string;
-  classId: string;
-  className: string;
-  teacher: Teacher;
-  subject: string;
-  building: string;
-  floor: number;
-  classroom: string;
-  availability: Availability;
-};
+export type EventAssignmentOverview = EventTeacherSetupOverview;
 
-export type EventAssignmentBulkUpsertResult = {
-  created: number;
-  updated: number;
-  assignments: EventAssignmentOverview[];
-};
+export type EventAssignmentBulkUpsertResult = EventTeacherSetupBulkUpsertResult;
+
+export type EventAssignmentInput = EventTeacherSetupFormInput;
 
 export type ParentMeetingView = {
   school: School;
@@ -143,17 +188,17 @@ export type ParentMeetingView = {
 
 export type EventReadinessCode =
   | "noIncludedClasses"
-  | "classMissingAssignment"
-  | "assignmentMissingTeacher"
-  | "assignmentMissingSubject"
-  | "assignmentMissingBuilding"
-  | "assignmentMissingFloor"
-  | "assignmentMissingClassroom"
-  | "assignmentInactiveTeacher"
+  | "classMissingTeachingAssignment"
+  | "teachingAssignmentMissingTeacher"
+  | "teachingAssignmentMissingSubject"
+  | "teachingAssignmentInactiveTeacher"
   | "includedClassInactive"
+  | "eventTeacherSetupMissing"
+  | "eventTeacherSetupMissingBuilding"
+  | "eventTeacherSetupMissingFloor"
+  | "eventTeacherSetupMissingClassroom"
   | "unavailableTeachers"
-  | "classOnlyOneAssignment"
-  | "eventNoClassTeacher";
+  | "classOnlyOneTeachingAssignment";
 
 export type EventReadinessItem = {
   code: EventReadinessCode;

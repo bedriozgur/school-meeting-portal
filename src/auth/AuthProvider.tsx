@@ -1,6 +1,7 @@
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
   type IdTokenResult,
@@ -26,6 +27,7 @@ type AuthContextValue = {
   hasAdminClaim: boolean;
   isConfigured: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmailAndPassword: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -76,6 +78,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
 
           const credential = await signInWithPopup(auth, new GoogleAuthProvider());
+          setTokenResult(await credential.user.getIdTokenResult(true));
+        },
+        async signInWithEmailAndPassword(email: string, password: string) {
+          if (!auth) {
+            throw new Error("Firebase Auth is not configured.");
+          }
+
+          const credential = await signInWithEmailAndPassword(auth, email, password);
           setTokenResult(await credential.user.getIdTokenResult(true));
         },
         async signOut() {

@@ -3,9 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import { EventLifecycleActions } from "../components/EventLifecycleActions";
 import { EventReadinessPanel } from "../components/EventReadinessPanel";
 import type {
-  EventAssignmentOverview,
   EventReadiness,
   MeetingEvent,
+  EventTeacherSetupOverview,
 } from "../domain/models";
 import { useT } from "../hooks/useT";
 import type { TranslationKey } from "../i18n/i18n";
@@ -39,7 +39,7 @@ export function AdminEventDetailPage() {
   const [status, setStatus] = useState<DetailStatus>("loading");
   const [event, setEvent] = useState<MeetingEvent | null>(null);
   const [readiness, setReadiness] = useState<EventReadiness | null>(null);
-  const [assignments, setAssignments] = useState<EventAssignmentOverview[]>([]);
+  const [assignments, setAssignments] = useState<EventTeacherSetupOverview[]>([]);
   const parentTarget = event ? `/meeting/${encodeURIComponent(event.code)}` : "";
   const absoluteParentTarget = useMemo(() => {
     if (!event) {
@@ -200,22 +200,34 @@ export function AdminEventDetailPage() {
 function AssignmentRow({
   assignment,
 }: {
-  assignment: EventAssignmentOverview;
+  assignment: EventTeacherSetupOverview;
 }) {
   const { t } = useT();
 
   return (
-    <article className="soft-panel grid gap-3 rounded-2xl p-4 lg:grid-cols-[0.7fr_1fr_1fr_0.8fr_0.6fr_0.8fr_0.8fr]">
-      <RowCell label={t("dashboard.className")} value={assignment.className} />
+    <article className="soft-panel grid gap-3 rounded-2xl p-4 lg:grid-cols-[1fr_1fr_1fr_0.8fr_0.6fr_0.8fr_1fr]">
       <RowCell label={t("admin.assignmentTeacher")} value={assignment.teacher.name} />
       <RowCell label={t("admin.assignmentSubject")} value={assignment.subject} />
-      <RowCell label={t("dashboard.building")} value={assignment.building} />
-      <RowCell label={t("dashboard.floor")} value={String(assignment.floor)} />
-      <RowCell label={t("dashboard.classroom")} value={assignment.classroom} />
+      <RowCell label={t("dashboard.building")} value={assignment.building || t("admin.masterDataMissingValue")} />
+      <RowCell label={t("dashboard.floor")} value={assignment.floor ? String(assignment.floor) : t("admin.masterDataMissingValue")} />
+      <RowCell label={t("dashboard.classroom")} value={assignment.classroom || t("admin.masterDataMissingValue")} />
       <RowCell
         label={t("admin.assignmentAvailability")}
         value={t(availabilityKeys[assignment.availability])}
       />
+      <div>
+        <p className="label">{t("admin.assignmentTeacherSetupStatus")}</p>
+        <p className="text-strong mt-1 text-sm font-black">
+          {assignment.locationMissing
+            ? t("admin.assignmentTeacherSetupMissing")
+            : t("admin.assignmentTeacherSetupComplete")}
+        </p>
+        {assignment.locationMissing ? (
+          <p className="copy mt-1 text-xs font-semibold">
+            {t("admin.assignmentTeacherSetupMissingHint")}
+          </p>
+        ) : null}
+      </div>
     </article>
   );
 }

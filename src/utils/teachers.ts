@@ -14,8 +14,20 @@ export function sortTeacherAssignments(
       return left.floor - right.floor;
     }
 
-    return left.classroom.localeCompare(right.classroom, "tr", {
+    const classroom = left.classroom.localeCompare(right.classroom, "tr", {
       numeric: true,
     });
+
+    if (classroom !== 0) {
+      return classroom;
+    }
+
+    const subject = left.subject.localeCompare(right.subject, "tr");
+
+    if (subject !== 0) {
+      return subject;
+    }
+
+    return left.id.localeCompare(right.id, "tr");
   });
 }

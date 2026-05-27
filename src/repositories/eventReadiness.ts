@@ -1,18 +1,24 @@
 import type {
-  EventAssignmentOverview,
   EventReadiness,
   EventReadinessCode,
   EventReadinessItem,
+  EventTeacherSetup,
   MeetingEvent,
   SchoolClass,
+  Teacher,
+  TeachingAssignment,
 } from "../domain/models";
+import { resolveTeachingAssignmentSubject } from "../utils/teachingAssignments";
 
 export function buildEventReadiness(params: {
   event: MeetingEvent | null;
   classes: SchoolClass[];
-  assignments: EventAssignmentOverview[];
+  teachers: Teacher[];
+  teachingAssignments: TeachingAssignment[];
+  eventTeacherSetups: EventTeacherSetup[];
 }): EventReadiness {
-  const { event, classes, assignments } = params;
+  const { event, classes, teachers, teachingAssignments, eventTeacherSetups } =
+    params;
   const errors: EventReadinessItem[] = [];
   const warnings: EventReadinessItem[] = [];
 
@@ -26,36 +32,38 @@ export function buildEventReadiness(params: {
   }
 
   const classById = new Map(classes.map((schoolClass) => [schoolClass.id, schoolClass]));
-  const assignmentsByClass = new Map<string, EventAssignmentOverview[]>();
+  const teacherById = new Map(teachers.map((teacher) => [teacher.id, teacher]));
+  const activeAssignments = teachingAssignments.filter(
+    (assignment) => assignment.isActive,
+  );
+  const assignmentsByClass = new Map<string, TeachingAssignment[]>();
+  const teachersInEvent = new Set<string>();
 
-  assignments.forEach((assignment) => {
+  activeAssignments.forEach((assignment) => {
+    teachersInEvent.add(assignment.teacherId);
     assignmentsByClass.set(assignment.classId, [
       ...(assignmentsByClass.get(assignment.classId) ?? []),
       assignment,
     ]);
 
-    if (!assignment.teacher.id) {
-      addItem(errors, "assignmentMissingTeacher", assignment.subject);
+    const teacher = teacherById.get(assignment.teacherId);
+
+    if (!teacher) {
+      addItem(errors, "teachingAssignmentMissingTeacher", assignment.subject);
+      return;
     }
 
-    if (!assignment.subject.trim()) {
-      addItem(errors, "assignmentMissingSubject", assignment.teacher.name);
+    const resolvedSubject = resolveTeachingAssignmentSubject({
+      assignment,
+      teacher,
+    });
+
+    if (!resolvedSubject.trim()) {
+      addItem(errors, "teachingAssignmentMissingSubject", teacher.name);
     }
 
-    if (!assignment.building.trim()) {
-      addItem(errors, "assignmentMissingBuilding", assignment.teacher.name);
-    }
-
-    if (!Number.isFinite(assignment.floor)) {
-      addItem(errors, "assignmentMissingFloor", assignment.teacher.name);
-    }
-
-    if (!assignment.classroom.trim()) {
-      addItem(errors, "assignmentMissingClassroom", assignment.teacher.name);
-    }
-
-    if (assignment.teacher.isActive === false) {
-      addItem(errors, "assignmentInactiveTeacher", assignment.teacher.name);
+    if (teacher.isActive === false) {
+      addItem(errors, "teachingAssignmentInactiveTeacher", teacher.name);
     }
   });
 
@@ -72,20 +80,44 @@ export function buildEventReadiness(params: {
     }
 
     if (classAssignments.length === 0) {
-      addItem(errors, "classMissingAssignment", className);
+      addItem(errors, "classMissingTeachingAssignment", className);
     }
 
     if (classAssignments.length === 1) {
-      addItem(warnings, "classOnlyOneAssignment", className);
-    }
-
-    if (!schoolClass?.classTeacherId) {
-      addItem(warnings, "eventNoClassTeacher", className);
+      addItem(warnings, "classOnlyOneTeachingAssignment", className);
     }
   });
 
-  if (assignments.some((assignment) => assignment.availability === "busy")) {
-    addItem(warnings, "unavailableTeachers");
+  const setupByTeacherId = new Map(
+    eventTeacherSetups
+      .filter((setup) => setup.eventId === event.id)
+      .map((setup) => [setup.teacherId, setup] as const),
+  );
+
+  for (const teacherId of teachersInEvent) {
+    const teacher = teacherById.get(teacherId);
+    const setup = setupByTeacherId.get(teacherId);
+
+    if (!setup) {
+      addItem(errors, "eventTeacherSetupMissing", teacher?.name ?? teacherId);
+      continue;
+    }
+
+    if (!setup.building.trim()) {
+      addItem(errors, "eventTeacherSetupMissingBuilding", teacher?.name ?? teacherId);
+    }
+
+    if (!Number.isFinite(setup.floor)) {
+      addItem(errors, "eventTeacherSetupMissingFloor", teacher?.name ?? teacherId);
+    }
+
+    if (!setup.classroom.trim()) {
+      addItem(errors, "eventTeacherSetupMissingClassroom", teacher?.name ?? teacherId);
+    }
+
+    if (setup.isAvailable === false) {
+      addItem(warnings, "unavailableTeachers", teacher?.name ?? teacherId);
+    }
   }
 
   return {

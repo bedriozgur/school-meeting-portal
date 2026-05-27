@@ -3,12 +3,12 @@ import { Link, useParams } from "react-router-dom";
 import { EventReadinessPanel } from "../components/EventReadinessPanel";
 import type {
   Availability,
-  EventAssignmentInput,
-  EventAssignmentOverview,
   EventReadiness,
+  EventTeacherSetupOverview,
   MeetingEvent,
   SchoolClass,
   Teacher,
+  TeachingAssignment,
 } from "../domain/models";
 import { useT } from "../hooks/useT";
 import type { TranslationKey } from "../i18n/i18n";
@@ -17,26 +17,22 @@ import { repositories } from "../repositories";
 type LoadStatus = "loading" | "success" | "error";
 type SaveStatus = "idle" | "saving" | "success" | "error";
 
-type AssignmentFormState = {
+type SetupFormState = {
   id: string | null;
-  classId: string;
   teacherId: string;
-  subject: string;
   building: string;
   floor: string;
   classroom: string;
-  availability: Availability;
+  isAvailable: boolean;
 };
 
-const emptyForm: AssignmentFormState = {
+const emptyForm: SetupFormState = {
   id: null,
-  classId: "",
   teacherId: "",
-  subject: "",
   building: "",
   floor: "",
   classroom: "",
-  availability: "available",
+  isAvailable: true,
 };
 
 const statusKeys: Record<MeetingEvent["status"], TranslationKey> = {
@@ -61,10 +57,12 @@ export function AdminEventAssignmentsPage() {
   const [readiness, setReadiness] = useState<EventReadiness | null>(null);
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [assignments, setAssignments] = useState<EventAssignmentOverview[]>([]);
-  const [form, setForm] = useState<AssignmentFormState>(emptyForm);
+  const [teachingAssignments, setTeachingAssignments] = useState<TeachingAssignment[]>([]);
+  const [setupRows, setSetupRows] = useState<EventTeacherSetupOverview[]>([]);
+  const [form, setForm] = useState<SetupFormState>(emptyForm);
   const [errorKeys, setErrorKeys] = useState<TranslationKey[]>([]);
   const isDraft = event?.status === "draft";
+
   const includedClasses = useMemo(
     () =>
       event
@@ -75,23 +73,79 @@ export function AdminEventAssignmentsPage() {
     [classes, event],
   );
 
+  const includedClassIds = useMemo(() => new Set(includedClasses.map((item) => item.id)), [includedClasses]);
+
+  const involvedTeachers = useMemo(() => {
+    const teacherById = new Map(teachers.map((teacher) => [teacher.id, teacher] as const));
+    const subjectByTeacherId = new Map<string, string>();
+
+    teachingAssignments.forEach((assignment) => {
+      if (!includedClassIds.has(assignment.classId)) {
+        return;
+      }
+
+      if (!assignment.isActive) {
+        return;
+      }
+
+      if (!subjectByTeacherId.has(assignment.teacherId)) {
+        subjectByTeacherId.set(assignment.teacherId, assignment.subject);
+      }
+    });
+
+    return [...subjectByTeacherId.entries()]
+      .map(([teacherId, subject]) => {
+        const teacher = teacherById.get(teacherId);
+
+        if (!teacher) {
+          return null;
+        }
+
+        return {
+          teacher,
+          subject,
+        };
+      })
+      .filter((item): item is { teacher: Teacher; subject: string } => Boolean(item))
+      .sort((left, right) => left.teacher.name.localeCompare(right.teacher.name, "tr"));
+  }, [includedClassIds, teachers, teachingAssignments]);
+
   useEffect(() => {
     let isCurrent = true;
 
     setLoadStatus("loading");
+    const teachingAssignmentsPromise = (async () => {
+      const nextEvent = await repositories.meetingRepository.getEventById(eventId);
+      if (!nextEvent) {
+        return [] as TeachingAssignment[];
+      }
+
+      const rows = await Promise.all(
+        nextEvent.includedClasses.map((classId) =>
+          repositories.teachingAssignmentRepository.listTeachingAssignmentsForClass(
+            classId,
+          ),
+        ),
+      );
+
+      return rows.flat().filter((assignment) => assignment.isActive);
+    })();
+
     Promise.all([
       repositories.meetingRepository.getEventById(eventId),
       repositories.classRepository.listClasses(),
       repositories.teacherRepository.listTeachers(),
-      repositories.assignmentRepository.listEventAssignments(eventId),
+      repositories.meetingRepository.getEventAssignments(eventId),
       repositories.meetingRepository.validateEventReadiness(eventId),
+      teachingAssignmentsPromise,
     ])
       .then(([
         nextEvent,
         nextClasses,
         nextTeachers,
-        nextAssignments,
+        nextSetupRows,
         nextReadiness,
+        nextTeachingAssignments,
       ]) => {
         if (!isCurrent) {
           return;
@@ -100,8 +154,9 @@ export function AdminEventAssignmentsPage() {
         setEvent(nextEvent);
         setClasses(nextClasses);
         setTeachers(nextTeachers);
-        setAssignments(nextAssignments);
+        setSetupRows(nextSetupRows);
         setReadiness(nextReadiness);
+        setTeachingAssignments(nextTeachingAssignments);
         setLoadStatus(nextEvent ? "success" : "error");
       })
       .catch(() => {
@@ -122,7 +177,7 @@ export function AdminEventAssignmentsPage() {
       return;
     }
 
-    const validationErrors = validateAssignmentForm(form, assignments);
+    const validationErrors = validateSetupForm(form, setupRows);
     setErrorKeys(validationErrors);
 
     if (validationErrors.length > 0) {
@@ -132,27 +187,21 @@ export function AdminEventAssignmentsPage() {
     setSaveStatus("saving");
 
     try {
-      const input = toAssignmentInput(event.id, form);
-      const savedAssignment = form.id
-        ? await repositories.assignmentRepository.updateEventAssignment(
-            form.id,
-            input,
-          )
+      const input = toSetupInput(event.id, form);
+      const savedSetup = form.id
+        ? await repositories.assignmentRepository.updateEventAssignment(form.id, input)
         : await repositories.assignmentRepository.createEventAssignment(input);
 
-      setAssignments((currentAssignments) =>
-        sortAssignments(
+      setSetupRows((currentRows) =>
+        sortSetups(
           form.id
-            ? currentAssignments.map((assignment) =>
-                assignment.id === savedAssignment.id
-                  ? savedAssignment
-                  : assignment,
-              )
-            : [...currentAssignments, savedAssignment],
+            ? currentRows.map((row) => (row.id === savedSetup.id ? savedSetup : row))
+            : [...currentRows, savedSetup],
         ),
       );
-      const nextReadiness =
-        await repositories.meetingRepository.validateEventReadiness(event.id);
+      const nextReadiness = await repositories.meetingRepository.validateEventReadiness(
+        event.id,
+      );
       setReadiness(nextReadiness);
       setForm(emptyForm);
       setSaveStatus("success");
@@ -161,7 +210,7 @@ export function AdminEventAssignmentsPage() {
     }
   }
 
-  async function handleDelete(assignmentId: string) {
+  async function handleDelete(setupId: string) {
     if (!isDraft || !window.confirm(t("admin.assignmentsConfirmDelete"))) {
       return;
     }
@@ -169,15 +218,14 @@ export function AdminEventAssignmentsPage() {
     setSaveStatus("saving");
 
     try {
-      await repositories.assignmentRepository.deleteEventAssignment(assignmentId);
-      setAssignments((currentAssignments) =>
-        currentAssignments.filter((assignment) => assignment.id !== assignmentId),
+      await repositories.assignmentRepository.deleteEventAssignment(setupId);
+      setSetupRows((currentRows) => currentRows.filter((row) => row.id !== setupId));
+      const nextReadiness = await repositories.meetingRepository.validateEventReadiness(
+        eventId,
       );
-      const nextReadiness =
-        await repositories.meetingRepository.validateEventReadiness(event.id);
       setReadiness(nextReadiness);
       setSaveStatus("success");
-      if (form.id === assignmentId) {
+      if (form.id === setupId) {
         setForm(emptyForm);
       }
     } catch {
@@ -185,7 +233,7 @@ export function AdminEventAssignmentsPage() {
     }
   }
 
-  async function toggleAvailability(assignment: EventAssignmentOverview) {
+  async function toggleAvailability(setup: EventTeacherSetupOverview) {
     if (!isDraft || !event) {
       return;
     }
@@ -193,32 +241,26 @@ export function AdminEventAssignmentsPage() {
     setSaveStatus("saving");
 
     try {
-      const savedAssignment =
-        await repositories.assignmentRepository.updateEventAssignment(
-          assignment.id,
-          {
-            eventId: event.id,
-            classId: assignment.classId,
-            teacherId: assignment.teacher.id,
-            subject: assignment.subject,
-            building: assignment.building,
-            floor: assignment.floor,
-            classroom: assignment.classroom,
-            availability:
-              assignment.availability === "busy" ? "available" : "busy",
-          },
-        );
-      setAssignments((currentAssignments) =>
-        sortAssignments(
-          currentAssignments.map((currentAssignment) =>
-            currentAssignment.id === savedAssignment.id
-              ? savedAssignment
-              : currentAssignment,
-          ),
+      const savedSetup = await repositories.assignmentRepository.updateEventAssignment(
+        setup.id,
+        {
+          eventId: event.id,
+          teacherId: setup.teacher.id,
+          building: setup.building,
+          floor: setup.floor,
+          classroom: setup.classroom,
+          isAvailable: setup.availability === "busy",
+        },
+      );
+
+      setSetupRows((currentRows) =>
+        sortSetups(
+          currentRows.map((row) => (row.id === savedSetup.id ? savedSetup : row)),
         ),
       );
-      const nextReadiness =
-        await repositories.meetingRepository.validateEventReadiness(event.id);
+      const nextReadiness = await repositories.meetingRepository.validateEventReadiness(
+        event.id,
+      );
       setReadiness(nextReadiness);
       setSaveStatus("success");
     } catch {
@@ -226,29 +268,17 @@ export function AdminEventAssignmentsPage() {
     }
   }
 
-  function startEdit(assignment: EventAssignmentOverview) {
+  function startEdit(setup: EventTeacherSetupOverview) {
     setForm({
-      id: assignment.id,
-      classId: assignment.classId,
-      teacherId: assignment.teacher.id,
-      subject: assignment.subject,
-      building: assignment.building,
-      floor: String(assignment.floor),
-      classroom: assignment.classroom,
-      availability: assignment.availability,
+      id: setup.id.startsWith("missing-") ? null : setup.id,
+      teacherId: setup.teacher.id,
+      building: setup.building,
+      floor: String(setup.floor),
+      classroom: setup.classroom,
+      isAvailable: setup.availability !== "busy",
     });
     setErrorKeys([]);
     setSaveStatus("idle");
-  }
-
-  function updateTeacher(teacherId: string) {
-    const teacher = teachers.find((currentTeacher) => currentTeacher.id === teacherId);
-
-    setForm((currentForm) => ({
-      ...currentForm,
-      teacherId,
-      subject: currentForm.subject || teacher?.subject || "",
-    }));
   }
 
   if (loadStatus === "loading") {
@@ -339,63 +369,49 @@ export function AdminEventAssignmentsPage() {
         ) : null}
 
         <form className="grid gap-4" onSubmit={handleSubmit}>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <label>
-              <span className="label">{t("admin.assignmentClass")}</span>
-              <select
-                className="input mt-2"
-                disabled={!isDraft}
-                onChange={(inputEvent) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    classId: inputEvent.target.value,
-                  }))
-                }
-                value={form.classId}
-              >
-                <option value="">{t("admin.assignmentsSelectClass")}</option>
-                {includedClasses.map((schoolClass) => (
-                  <option key={schoolClass.id} value={schoolClass.id}>
-                    {schoolClass.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
+          <div className="grid gap-4 lg:grid-cols-2">
             <label>
               <span className="label">{t("admin.assignmentTeacher")}</span>
               <select
                 className="input mt-2"
                 disabled={!isDraft}
-                onChange={(inputEvent) => updateTeacher(inputEvent.target.value)}
+                onChange={(inputEvent) =>
+                  setForm((currentForm) => ({
+                    ...currentForm,
+                    teacherId: inputEvent.target.value,
+                  }))
+                }
                 value={form.teacherId}
               >
                 <option value="">{t("admin.assignmentsSelectTeacher")}</option>
-                {teachers.map((teacher) => (
+                {involvedTeachers.map(({ teacher, subject }) => (
                   <option key={teacher.id} value={teacher.id}>
-                    {teacher.name}
+                    {teacher.name} · {subject}
                   </option>
                 ))}
               </select>
             </label>
 
             <label>
-              <span className="label">{t("admin.assignmentSubject")}</span>
-              <input
+              <span className="label">{t("admin.assignmentAvailability")}</span>
+              <select
                 className="input mt-2"
                 disabled={!isDraft}
                 onChange={(inputEvent) =>
                   setForm((currentForm) => ({
                     ...currentForm,
-                    subject: inputEvent.target.value,
+                    isAvailable: inputEvent.target.value === "available",
                   }))
                 }
-                value={form.subject}
-              />
+                value={form.isAvailable ? "available" : "busy"}
+              >
+                <option value="available">{t("dashboard.available")}</option>
+                <option value="busy">{t("dashboard.busy")}</option>
+              </select>
             </label>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-4">
+          <div className="grid gap-4 lg:grid-cols-3">
             <label>
               <span className="label">{t("dashboard.building")}</span>
               <input
@@ -439,23 +455,6 @@ export function AdminEventAssignmentsPage() {
                 value={form.classroom}
               />
             </label>
-            <label>
-              <span className="label">{t("admin.assignmentAvailability")}</span>
-              <select
-                className="input mt-2"
-                disabled={!isDraft}
-                onChange={(inputEvent) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    availability: inputEvent.target.value as Availability,
-                  }))
-                }
-                value={form.availability}
-              >
-                <option value="available">{t("dashboard.available")}</option>
-                <option value="busy">{t("dashboard.busy")}</option>
-              </select>
-            </label>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -491,14 +490,14 @@ export function AdminEventAssignmentsPage() {
           </h2>
         </div>
         <div className="grid gap-3">
-          {assignments.map((assignment) => (
-            <AssignmentRow
-              assignment={assignment}
+          {setupRows.map((setup) => (
+      <SetupRow
+              key={setup.id}
               isDraft={isDraft}
-              key={assignment.id}
               onDelete={handleDelete}
               onEdit={startEdit}
               onToggleAvailability={toggleAvailability}
+              setup={setup}
             />
           ))}
         </div>
@@ -507,54 +506,53 @@ export function AdminEventAssignmentsPage() {
   );
 }
 
-function AssignmentRow({
-  assignment,
+function SetupRow({
+  setup,
   isDraft,
   onDelete,
   onEdit,
   onToggleAvailability,
 }: {
-  assignment: EventAssignmentOverview;
+  setup: EventTeacherSetupOverview;
   isDraft: boolean;
-  onDelete: (assignmentId: string) => void;
-  onEdit: (assignment: EventAssignmentOverview) => void;
-  onToggleAvailability: (assignment: EventAssignmentOverview) => void;
+  onDelete: (setupId: string) => void;
+  onEdit: (setup: EventTeacherSetupOverview) => void;
+  onToggleAvailability: (setup: EventTeacherSetupOverview) => void;
 }) {
   const { t } = useT();
 
   return (
-    <article className="soft-panel grid gap-3 rounded-2xl p-4 xl:grid-cols-[0.7fr_1fr_1fr_0.7fr_0.5fr_0.8fr_0.8fr_auto]">
-      <RowCell label={t("admin.assignmentClass")} value={assignment.className} />
-      <RowCell label={t("admin.assignmentTeacher")} value={assignment.teacher.name} />
-      <RowCell label={t("admin.assignmentSubject")} value={assignment.subject} />
-      <RowCell label={t("dashboard.building")} value={assignment.building} />
-      <RowCell label={t("dashboard.floor")} value={String(assignment.floor)} />
-      <RowCell label={t("dashboard.classroom")} value={assignment.classroom} />
+    <article className="soft-panel grid gap-3 rounded-2xl p-4 xl:grid-cols-[1fr_1fr_0.7fr_0.5fr_0.8fr_0.8fr_auto]">
+      <RowCell label={t("admin.assignmentTeacher")} value={setup.teacher.name} />
+      <RowCell label={t("admin.assignmentSubject")} value={setup.subject} />
+      <RowCell label={t("dashboard.building")} value={setup.building || t("admin.masterDataMissingValue")} />
+      <RowCell label={t("dashboard.floor")} value={setup.floor ? String(setup.floor) : t("admin.masterDataMissingValue")} />
+      <RowCell label={t("dashboard.classroom")} value={setup.classroom || t("admin.masterDataMissingValue")} />
       <RowCell
         label={t("admin.assignmentAvailability")}
-        value={t(availabilityKeys[assignment.availability])}
+        value={t(availabilityKeys[setup.availability])}
       />
       <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
         <button
           className="btn-secondary"
           disabled={!isDraft}
-          onClick={() => onEdit(assignment)}
+          onClick={() => onEdit(setup)}
           type="button"
         >
           {t("admin.assignmentsEdit")}
         </button>
         <button
           className="btn-secondary"
-          disabled={!isDraft}
-          onClick={() => onToggleAvailability(assignment)}
+          disabled={!isDraft || setup.id.startsWith("missing-")}
+          onClick={() => onToggleAvailability(setup)}
           type="button"
         >
           {t("admin.assignmentsToggleAvailability")}
         </button>
         <button
           className="btn-secondary"
-          disabled={!isDraft}
-          onClick={() => onDelete(assignment.id)}
+          disabled={!isDraft || setup.id.startsWith("missing-")}
+          onClick={() => onDelete(setup.id)}
           type="button"
         >
           {t("admin.assignmentsRemove")}
@@ -568,9 +566,7 @@ function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div className="soft-panel min-w-0 rounded-2xl p-3">
       <dt className="label">{label}</dt>
-      <dd className="text-strong mt-2 break-words text-sm font-black">
-        {value}
-      </dd>
+      <dd className="text-strong mt-2 break-words text-sm font-black">{value}</dd>
     </div>
   );
 }
@@ -584,22 +580,14 @@ function RowCell({ label, value }: { label: string; value: string }) {
   );
 }
 
-function validateAssignmentForm(
-  form: AssignmentFormState,
-  assignments: EventAssignmentOverview[],
+function validateSetupForm(
+  form: SetupFormState,
+  existingRows: EventTeacherSetupOverview[],
 ) {
   const errors: TranslationKey[] = [];
 
-  if (!form.classId) {
-    errors.push("admin.assignmentsErrorClassRequired");
-  }
-
   if (!form.teacherId) {
     errors.push("admin.assignmentsErrorTeacherRequired");
-  }
-
-  if (!form.subject.trim()) {
-    errors.push("admin.assignmentsErrorSubjectRequired");
   }
 
   if (!form.building.trim()) {
@@ -614,13 +602,11 @@ function validateAssignmentForm(
     errors.push("admin.assignmentsErrorClassroomRequired");
   }
 
-  const duplicate = assignments.some(
-    (assignment) =>
-      assignment.id !== form.id &&
-      assignment.classId === form.classId &&
-      assignment.teacher.id === form.teacherId &&
-      assignment.subject.trim().toLocaleLowerCase("tr") ===
-        form.subject.trim().toLocaleLowerCase("tr"),
+  const duplicate = existingRows.some(
+    (row) =>
+      !row.id.startsWith("missing-") &&
+      row.id !== form.id &&
+      row.teacher.id === form.teacherId,
   );
 
   if (duplicate) {
@@ -630,44 +616,22 @@ function validateAssignmentForm(
   return errors;
 }
 
-function toAssignmentInput(
-  eventId: string,
-  form: AssignmentFormState,
-): EventAssignmentInput {
+function toSetupInput(eventId: string, form: SetupFormState) {
   return {
     eventId,
-    classId: form.classId,
     teacherId: form.teacherId,
-    subject: form.subject.trim(),
     building: form.building.trim(),
     floor: Number(form.floor),
     classroom: form.classroom.trim(),
-    availability: form.availability,
+    isAvailable: form.isAvailable,
   };
 }
 
-function sortAssignments(assignments: EventAssignmentOverview[]) {
+function sortSetups(assignments: EventTeacherSetupOverview[]) {
   return [...assignments].sort((left, right) => {
-    const className = left.className.localeCompare(right.className, "tr", {
-      numeric: true,
-    });
-
-    if (className !== 0) {
-      return className;
-    }
-
     const building = left.building.localeCompare(right.building, "tr");
-
-    if (building !== 0) {
-      return building;
-    }
-
-    if (left.floor !== right.floor) {
-      return left.floor - right.floor;
-    }
-
-    return left.classroom.localeCompare(right.classroom, "tr", {
-      numeric: true,
-    });
+    if (building !== 0) return building;
+    if (left.floor !== right.floor) return left.floor - right.floor;
+    return left.classroom.localeCompare(right.classroom, "tr", { numeric: true });
   });
 }

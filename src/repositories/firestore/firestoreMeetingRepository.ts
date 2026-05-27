@@ -11,7 +11,13 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import type { EventAssignmentOverview, EventFormInput } from "../../domain/models";
+import type {
+  EventFormInput,
+  EventTeacherSetup,
+  EventTeacherSetupOverview,
+  TeachingAssignment,
+  Teacher,
+} from "../../domain/models";
 import { DEFAULT_SCHOOL_ID } from "../../config/school";
 import type { MeetingRepository } from "../interfaces";
 import {
@@ -24,12 +30,14 @@ import { mapMeetingEvent, mapTeacher } from "./firestoreMappers";
 import {
   findActiveOrDraftEventByCode,
   getClassById,
+  getTeacherByIdOrNull,
+  getTeachingAssignmentsForClass,
   requireFirestore,
 } from "./firestoreLookups";
 import type {
   FirestoreClassDocument,
   FirestoreEventDocument,
-  FirestoreMeetingAssignmentDocument,
+  FirestoreEventTeacherSetupDocument,
   FirestoreTeacherDocument,
 } from "./firestoreTypes";
 import {
@@ -71,56 +79,81 @@ export const firestoreMeetingRepository: MeetingRepository = {
   },
   async getEventAssignments(eventId) {
     const db = requireFirestore();
-    const snapshot = await getDocs(
-      query(
-        collection(db, "meetingAssignments"),
-        where("eventId", "==", eventId),
-        limit(50),
+    const event = await firestoreMeetingRepository.getEventById(eventId);
+
+    if (!event) {
+      return [];
+    }
+
+    const teachingAssignments = await Promise.all(
+      event.includedClasses.map((classId) =>
+        getTeachingAssignmentsForClass(db, classId),
       ),
     );
-    const rows: Array<EventAssignmentOverview | null> = await Promise.all(
-      snapshot.docs.map(async (assignmentDocument) => {
-        const assignmentData =
-          assignmentDocument.data() as FirestoreMeetingAssignmentDocument;
-        const [classData, teacherSnapshot] = await Promise.all([
-          getClassById(db, assignmentData.classId ?? ""),
-          getDoc(doc(db, "teachers", assignmentData.teacherId ?? "")),
-        ]);
+    const teacherSubjectById = new Map<string, string>();
 
-        if (!teacherSnapshot.exists()) {
+    teachingAssignments.flat().forEach((assignment) => {
+      if (!assignment.isActive) {
+        return;
+      }
+      if (!teacherSubjectById.has(assignment.teacherId)) {
+        teacherSubjectById.set(assignment.teacherId, assignment.subject);
+      }
+    });
+
+    const setupsSnapshot = await getDocs(
+      query(
+        collection(db, "eventTeacherSetups"),
+        where("eventId", "==", eventId),
+        limit(100),
+      ),
+    );
+    const setupByTeacherId = new Map(
+      setupsSnapshot.docs.map((setupDocument) => [
+        (setupDocument.data() as FirestoreEventTeacherSetupDocument).teacherId ??
+          "",
+        {
+          id: setupDocument.id,
+          data: setupDocument.data() as FirestoreEventTeacherSetupDocument,
+        },
+      ]),
+    );
+
+    const rows: Array<EventTeacherSetupOverview | null> = await Promise.all(
+      [...teacherSubjectById.entries()].map(async ([teacherId, subject]) => {
+        const teacher = await getTeacherByIdOrNull(db, teacherId);
+
+        if (!teacher) {
           return null;
         }
 
-        const overview: EventAssignmentOverview = {
-          id: assignmentDocument.id,
-          classId: assignmentData.classId ?? "",
-          className: classData.name ?? "",
-          teacher: mapTeacher(
-            teacherSnapshot.id,
-            teacherSnapshot.data() as FirestoreTeacherDocument,
-          ),
-          subject: assignmentData.subject ?? "",
-          building: assignmentData.building ?? "",
-          floor: assignmentData.floor ?? 0,
-          classroom: assignmentData.classroom ?? "",
-          availability: assignmentData.isAvailable ? "available" : "busy",
+        const setup = setupByTeacherId.get(teacherId);
+        const setupData: FirestoreEventTeacherSetupDocument = setup?.data ?? {
+          eventId,
+          schoolId: event.schoolId,
+          teacherId,
+          building: "",
+          floor: 0,
+          classroom: "",
+          isAvailable: false,
         };
 
-        return overview;
+        return {
+          id: setup?.id ?? `missing-${eventId}-${teacherId}`,
+          teacher,
+          subject,
+          building: setupData.building ?? "",
+          floor: setupData.floor ?? 0,
+          classroom: setupData.classroom ?? "",
+          availability: setupData.isAvailable ? ("available" as const) : ("busy" as const),
+          locationMissing: !setup,
+        } satisfies EventTeacherSetupOverview;
       }),
     );
 
     return rows
-      .filter((row): row is EventAssignmentOverview => Boolean(row))
+      .filter((row): row is EventTeacherSetupOverview => row !== null)
       .sort((left, right) => {
-        const className = left.className.localeCompare(right.className, "tr", {
-          numeric: true,
-        });
-
-        if (className !== 0) {
-          return className;
-        }
-
         const building = left.building.localeCompare(right.building, "tr");
 
         if (building !== 0) {
@@ -139,9 +172,23 @@ export const firestoreMeetingRepository: MeetingRepository = {
   async validateEventReadiness(eventId) {
     const db = requireFirestore();
     const event = await firestoreMeetingRepository.getEventById(eventId);
-    const [classesSnapshot, assignments] = await Promise.all([
+    const setupsPromise = event
+      ? getDocs(
+          query(
+            collection(db, "eventTeacherSetups"),
+            where("eventId", "==", event.id),
+            limit(100),
+          ),
+        )
+      : Promise.resolve({ docs: [] } as { docs: Array<{ data: () => FirestoreEventTeacherSetupDocument; id: string }> });
+    const [classesSnapshot, teachingAssignments, setupsSnapshot] = await Promise.all([
       getDocs(query(collection(db, "classes"), orderBy("name", "asc"))),
-      firestoreMeetingRepository.getEventAssignments(eventId),
+      Promise.all(
+        (event?.includedClasses ?? []).map((classId) =>
+          getTeachingAssignmentsForClass(db, classId),
+        ),
+      ),
+      setupsPromise,
     ]);
     const classes = classesSnapshot.docs.map((classDocument) => {
       const data = classDocument.data() as FirestoreClassDocument;
@@ -155,11 +202,44 @@ export const firestoreMeetingRepository: MeetingRepository = {
         isActive: data.isActive ?? true,
       };
     });
+    const teachers: Teacher[] = [];
+    const teacherIdSet = new Set<string>();
+    teachingAssignments.flat().forEach((assignment) => {
+      if (!assignment.isActive) {
+        return;
+      }
+      teacherIdSet.add(assignment.teacherId);
+    });
+    setupsSnapshot.docs.forEach((setupDocument) => {
+      const data = setupDocument.data() as FirestoreEventTeacherSetupDocument;
+      if (data.teacherId) {
+        teacherIdSet.add(data.teacherId);
+      }
+    });
+    await Promise.all(
+      [...teacherIdSet].map(async (teacherId) => {
+        const teacher = await getTeacherByIdOrNull(db, teacherId);
+        if (teacher) {
+          teachers.push(teacher);
+        }
+      }),
+    );
 
     return buildEventReadiness({
       event,
       classes,
-      assignments,
+      teachers,
+      teachingAssignments: teachingAssignments.flat(),
+      eventTeacherSetups: setupsSnapshot.docs.map((setupDocument) => ({
+        id: setupDocument.id,
+        schoolId: (setupDocument.data() as FirestoreEventTeacherSetupDocument).schoolId ?? "",
+        eventId: (setupDocument.data() as FirestoreEventTeacherSetupDocument).eventId ?? "",
+        teacherId: (setupDocument.data() as FirestoreEventTeacherSetupDocument).teacherId ?? "",
+        building: (setupDocument.data() as FirestoreEventTeacherSetupDocument).building ?? "",
+        floor: (setupDocument.data() as FirestoreEventTeacherSetupDocument).floor ?? 0,
+        classroom: (setupDocument.data() as FirestoreEventTeacherSetupDocument).classroom ?? "",
+        isAvailable: (setupDocument.data() as FirestoreEventTeacherSetupDocument).isAvailable ?? false,
+      }) as EventTeacherSetup),
     });
   },
   async isMeetingCodeAvailable(meetingCode, excludingEventId) {
@@ -287,34 +367,7 @@ export const firestoreMeetingRepository: MeetingRepository = {
       updatedAt: serverTimestamp(),
     };
     const newEventRef = await addDoc(collection(db, "events"), newEvent);
-    const assignmentsSnapshot = await getDocs(
-      query(
-        collection(db, "meetingAssignments"),
-        where("eventId", "==", eventId),
-        limit(50),
-      ),
-    );
-
-    await Promise.all(
-      assignmentsSnapshot.docs.map((assignmentDocument) => {
-        const assignmentData =
-          assignmentDocument.data() as FirestoreMeetingAssignmentDocument;
-
-        if (
-          assignmentData.classId &&
-          !inputOverrides.includedClasses.includes(assignmentData.classId)
-        ) {
-          return Promise.resolve();
-        }
-
-        return addDoc(collection(db, "meetingAssignments"), {
-          ...assignmentData,
-          eventId: newEventRef.id,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      }),
-    );
+    await Promise.all([]);
 
     return mapMeetingEvent(newEventRef.id, newEvent);
   },

@@ -38,7 +38,7 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
               {assignment.teacher.name}
             </h3>
             <p className="copy mt-1 text-base font-bold">
-              {assignment.subject}
+              {assignment.subject || t("admin.masterDataMissingValue")}
             </p>
           </div>
           <span
@@ -68,6 +68,18 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
             <dd className="mt-1 text-lg font-black">{assignment.classroom}</dd>
           </div>
         </dl>
+
+        {assignment.locationMissing ? (
+          <p className="status-warning rounded-2xl px-4 py-3 text-sm font-bold">
+            {t("dashboard.locationMissing")}
+          </p>
+        ) : null}
+
+        {assignment.subjectMissing ? (
+          <p className="status-warning rounded-2xl px-4 py-3 text-sm font-bold">
+            {t("dashboard.subjectMissing")}
+          </p>
+        ) : null}
 
         <label className="flex min-h-12 items-center gap-3 rounded-2xl border bg-white px-4 py-3 text-base font-extrabold [border-color:var(--color-border)]">
           <input

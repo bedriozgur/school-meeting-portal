@@ -1,120 +1,218 @@
 import type {
-  EventAssignmentBulkUpsertResult,
-  EventAssignmentInput,
-  EventAssignmentOverview,
+  EventTeacherSetupBulkUpsertResult,
+  EventTeacherSetupFormInput,
+  EventTeacherSetupOverview,
+  EventTeacherSetup,
 } from "../../domain/models";
 import type { AssignmentRepository } from "../interfaces";
+import { DEFAULT_SCHOOL_ID } from "../../config/school";
 import {
-  mockClasses,
-  mockEventAssignments,
+  mockEventTeacherSetups,
+  mockMeetingEvents,
   mockTeachers,
 } from "./mockData";
+import { getTeachingAssignmentsForClass } from "./mockTeachingAssignmentRepository";
 
 export const mockAssignmentRepository: AssignmentRepository = {
   async listEventAssignments(eventId) {
-    return getAssignmentsForEvent(eventId);
+    return getEventTeacherSetupsForEvent(eventId);
   },
   async createEventAssignment(input) {
-    assertNoDuplicate(input);
-    const assignment = {
-      ...input,
-      id: `assignment-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    assertEventTeacherSetupAvailable(input);
+    const eventTeacherSetup: EventTeacherSetup = {
+      id: `ets-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      schoolId: DEFAULT_SCHOOL_ID,
+      eventId: input.eventId,
+      teacherId: input.teacherId,
+      building: input.building.trim(),
+      floor: input.floor,
+      classroom: input.classroom.trim(),
+      isAvailable: input.isAvailable,
     };
-    mockEventAssignments.push(assignment);
+    mockEventTeacherSetups.push(eventTeacherSetup);
 
-    return mapAssignment(assignment);
+    return mapEventTeacherSetup(eventTeacherSetup);
   },
   async updateEventAssignment(assignmentId, input) {
-    const assignmentIndex = mockEventAssignments.findIndex(
-      (assignment) => assignment.id === assignmentId,
+    const eventTeacherSetup = mockEventTeacherSetups.find(
+      (setup) => setup.id === assignmentId,
     );
 
-    if (assignmentIndex === -1) {
-      throw new Error(`Assignment not found: ${assignmentId}`);
+    if (!eventTeacherSetup) {
+      throw new Error(`Event teacher setup not found: ${assignmentId}`);
     }
 
-    assertNoDuplicate(input, assignmentId);
-    mockEventAssignments[assignmentIndex] = {
-      ...input,
-      id: assignmentId,
-    };
+    assertEventTeacherSetupAvailable(input, assignmentId);
+    Object.assign(eventTeacherSetup, {
+      eventId: input.eventId,
+      teacherId: input.teacherId,
+      building: input.building.trim(),
+      floor: input.floor,
+      classroom: input.classroom.trim(),
+      isAvailable: input.isAvailable,
+    });
 
-    return mapAssignment(mockEventAssignments[assignmentIndex]);
+    return mapEventTeacherSetup(eventTeacherSetup);
   },
   async deleteEventAssignment(assignmentId) {
-    const assignmentIndex = mockEventAssignments.findIndex(
-      (assignment) => assignment.id === assignmentId,
+    const index = mockEventTeacherSetups.findIndex(
+      (setup) => setup.id === assignmentId,
     );
 
-    if (assignmentIndex === -1) {
-      throw new Error(`Assignment not found: ${assignmentId}`);
+    if (index === -1) {
+      throw new Error(`Event teacher setup not found: ${assignmentId}`);
     }
 
-    mockEventAssignments.splice(assignmentIndex, 1);
+    mockEventTeacherSetups.splice(index, 1);
   },
   async bulkUpsertEventAssignments(inputs) {
     const uniqueInputs = dedupeInputs(inputs);
     let created = 0;
     let updated = 0;
-    const assignments: EventAssignmentOverview[] = [];
+    const eventTeacherSetups: EventTeacherSetupOverview[] = [];
 
     uniqueInputs.forEach((input) => {
-      const assignmentIndex = mockEventAssignments.findIndex(
-        (assignment) => isSameAssignmentKey(assignment, input),
+      const existingSetup = mockEventTeacherSetups.find((setup) =>
+        isSameEventTeacherSetupKey(setup, input),
       );
 
-      if (assignmentIndex === -1) {
-        const assignment = {
-          ...input,
-          id: `assignment-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      if (!existingSetup) {
+        const eventTeacherSetup: EventTeacherSetup = {
+          id: `ets-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          schoolId: DEFAULT_SCHOOL_ID,
+          eventId: input.eventId,
+          teacherId: input.teacherId,
+          building: input.building.trim(),
+          floor: input.floor,
+          classroom: input.classroom.trim(),
+          isAvailable: input.isAvailable,
         };
-        mockEventAssignments.push(assignment);
+        mockEventTeacherSetups.push(eventTeacherSetup);
         created += 1;
-        assignments.push(mapAssignment(assignment));
+        eventTeacherSetups.push(mapEventTeacherSetup(eventTeacherSetup));
         return;
       }
 
-      mockEventAssignments[assignmentIndex] = {
-        ...mockEventAssignments[assignmentIndex],
-        ...input,
-        id: mockEventAssignments[assignmentIndex].id,
-      };
+      Object.assign(existingSetup, {
+        eventId: input.eventId,
+        teacherId: input.teacherId,
+        building: input.building.trim(),
+        floor: input.floor,
+        classroom: input.classroom.trim(),
+        isAvailable: input.isAvailable,
+      });
       updated += 1;
-      assignments.push(mapAssignment(mockEventAssignments[assignmentIndex]));
+      eventTeacherSetups.push(mapEventTeacherSetup(existingSetup));
     });
 
     return {
       created,
       updated,
-      assignments,
-    } satisfies EventAssignmentBulkUpsertResult;
+      eventTeacherSetups,
+    } satisfies EventTeacherSetupBulkUpsertResult;
   },
 };
 
-export function getAssignmentsForEvent(eventId: string) {
-  return mockEventAssignments
-    .filter((assignment) => assignment.eventId === eventId)
-    .map(mapAssignment)
-    .sort(sortAssignmentOverview);
+export function getEventTeacherSetupsForEvent(eventId: string) {
+  return mockEventTeacherSetups
+    .filter((setup) => setup.eventId === eventId)
+    .map(mapEventTeacherSetup)
+    .sort(sortEventTeacherSetup);
 }
 
-function assertNoDuplicate(input: EventAssignmentInput, excludingId?: string) {
-  const duplicate = mockEventAssignments.some(
-    (assignment) =>
-      isSameAssignmentKey(assignment, input) &&
-      assignment.id !== excludingId,
+export function getEventSetupTeacherIdsForEvent(eventId: string) {
+  const event = mockMeetingEvents.find((meeting) => meeting.id === eventId);
+
+  if (!event) {
+    return [];
+  }
+
+  const teacherIds = new Set<string>();
+
+  event.includedClasses.forEach((classId) => {
+    getTeachingAssignmentsForClass(classId)
+      .filter((assignment) => assignment.isActive)
+      .forEach((assignment) => {
+        teacherIds.add(assignment.teacherId);
+      });
+  });
+
+  return [...teacherIds];
+}
+
+function mapEventTeacherSetup(
+  setup: EventTeacherSetup,
+): EventTeacherSetupOverview {
+  const teacher = mockTeachers.find(
+    (currentTeacher) => currentTeacher.id === setup.teacherId,
+  );
+  const subject =
+    getTeachingAssignmentSubject(setup.eventId, setup.teacherId) ??
+    teacher?.subject ??
+    "";
+
+  if (!teacher) {
+    throw new Error(`Invalid event teacher setup: ${setup.id}`);
+  }
+
+  return {
+    id: setup.id,
+    teacher,
+    subject,
+    building: setup.building,
+    floor: setup.floor,
+    classroom: setup.classroom,
+    availability: setup.isAvailable ? "available" : "busy",
+    locationMissing:
+      !setup.building.trim() ||
+      !setup.classroom.trim() ||
+      !Number.isFinite(setup.floor),
+  };
+}
+
+function getTeachingAssignmentSubject(eventId: string, teacherId: string) {
+  const event = mockMeetingEvents.find((meeting) => meeting.id === eventId);
+
+  if (!event) {
+    return null;
+  }
+
+  for (const classId of event.includedClasses) {
+    const match = getTeachingAssignmentsForClass(classId)
+      .filter((assignment) => assignment.isActive)
+      .find((assignment) => assignment.teacherId === teacherId);
+
+    if (match) {
+      return match.subject;
+    }
+  }
+
+  return null;
+}
+
+function assertEventTeacherSetupAvailable(
+  input: EventTeacherSetupFormInput,
+  excludingId?: string,
+) {
+  const duplicate = mockEventTeacherSetups.some(
+    (setup) =>
+      isSameEventTeacherSetupKey(setup, input) && setup.id !== excludingId,
   );
 
   if (duplicate) {
-    throw new Error("Duplicate assignment.");
+    throw new Error("Duplicate event teacher setup.");
+  }
+
+  if (!mockTeachers.some((teacher) => teacher.id === input.teacherId)) {
+    throw new Error(`Teacher not found: ${input.teacherId}`);
   }
 }
 
-function dedupeInputs(inputs: EventAssignmentInput[]) {
+function dedupeInputs(inputs: EventTeacherSetupFormInput[]) {
   const seen = new Set<string>();
 
   return inputs.filter((input) => {
-    const key = assignmentKey(input);
+    const key = eventTeacherSetupKey(input);
 
     if (seen.has(key)) {
       return false;
@@ -125,61 +223,21 @@ function dedupeInputs(inputs: EventAssignmentInput[]) {
   });
 }
 
-function assignmentKey(input: EventAssignmentInput) {
-  return [
-    input.eventId,
-    input.classId,
-    input.teacherId,
-    input.subject.trim().toLocaleLowerCase("tr"),
-  ].join("|");
+function eventTeacherSetupKey(input: EventTeacherSetupFormInput) {
+  return [input.eventId, input.teacherId].join("|");
 }
 
-function isSameAssignmentKey(
-  assignment: EventAssignmentInput & { id: string },
-  input: EventAssignmentInput,
+function isSameEventTeacherSetupKey(
+  setup: EventTeacherSetup,
+  input: EventTeacherSetupFormInput,
 ) {
-  return assignmentKey(assignment) === assignmentKey(input);
+  return eventTeacherSetupKey(setup) === eventTeacherSetupKey(input);
 }
 
-function mapAssignment(
-  assignment: EventAssignmentInput & { id: string },
-): EventAssignmentOverview {
-  const teacher = mockTeachers.find(
-    (currentTeacher) => currentTeacher.id === assignment.teacherId,
-  );
-  const schoolClass = mockClasses.find(
-    (currentClass) => currentClass.id === assignment.classId,
-  );
-
-  if (!teacher || !schoolClass) {
-    throw new Error(`Invalid assignment: ${assignment.id}`);
-  }
-
-  return {
-    id: assignment.id,
-    classId: assignment.classId,
-    className: schoolClass.name,
-    teacher,
-    subject: assignment.subject,
-    building: assignment.building,
-    floor: assignment.floor,
-    classroom: assignment.classroom,
-    availability: assignment.availability,
-  };
-}
-
-function sortAssignmentOverview(
-  left: EventAssignmentOverview,
-  right: EventAssignmentOverview,
+function sortEventTeacherSetup(
+  left: EventTeacherSetupOverview,
+  right: EventTeacherSetupOverview,
 ) {
-  const className = left.className.localeCompare(right.className, "tr", {
-    numeric: true,
-  });
-
-  if (className !== 0) {
-    return className;
-  }
-
   const building = left.building.localeCompare(right.building, "tr");
 
   if (building !== 0) {
@@ -190,7 +248,5 @@ function sortAssignmentOverview(
     return left.floor - right.floor;
   }
 
-  return left.classroom.localeCompare(right.classroom, "tr", {
-    numeric: true,
-  });
+  return left.classroom.localeCompare(right.classroom, "tr", { numeric: true });
 }

@@ -119,6 +119,45 @@ Admin auth documentation:
 
 - `docs/admin-auth.md`
 
+### Setting an admin custom claim locally
+
+Use the local utility script to set `admin: true` on a Firebase Auth user:
+
+```bash
+node scripts/set-admin-claim.cjs user@example.com
+```
+
+The script needs Firebase Admin credentials from one of these sources:
+
+- `GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json`
+- `FIREBASE_SERVICE_ACCOUNT_JSON` with the raw service account JSON payload
+
+If you keep a downloaded service account file on disk, it should stay out of git. The repository ignores common service account filename patterns, including `*service-account*.json` and `firebase-service-account*.json`.
+
+Notes:
+
+- The user must already exist in Firebase Authentication.
+- The script sets only `{ admin: true }`.
+- Do not commit service account files or paste them into source control.
+
+### Email/Password admin login
+
+The admin login page now supports both Google sign-in and email/password sign-in.
+Email/password is intended for staging and pilot use when you want a manually managed Firebase Authentication user.
+
+To enable it:
+
+1. In Firebase Console, open Authentication > Sign-in method.
+2. Enable the Email/Password provider.
+3. Create the admin user manually in Authentication > Users.
+4. Set the user's admin custom claim with the local script above so Firestore writes still work.
+
+Important:
+
+- `VITE_ADMIN_EMAILS` is still UI-only allowlist access.
+- `VITE_ADMIN_EMAILS` does not grant Firestore write access.
+- Firestore admin writes still require the `admin: true` custom claim.
+
 ## Admin Shell Status
 
 Protected admin pages now use a shared `AdminLayout` with navigation for:
@@ -209,19 +248,28 @@ Event create/edit forms support event name, date, start/end time, and included c
 
 Meeting code generation uses the `ABC-123` format. New and duplicated events ask the active `MeetingRepository` whether a generated code is available and retry with a safe limit before failing. Existing event edits preserve the current meeting code.
 
-Event duplication is available from the event list and event detail page. The duplicate flow creates a new draft event with a new unique meeting code, copies included classes, and pre-fills start/end time from the source event. The admin must confirm the new event name and date before saving. In mock mode, duplication is simulated in memory. In Firestore mode, duplication creates a new `events` document and copies source `meetingAssignments` to the new `eventId`. Parent notes are not duplicated because they are stored only in browser storage.
+Event duplication is available from the event list and event detail page. The duplicate flow creates a new draft event with a new unique meeting code, copies included classes, and pre-fills start/end time from the source event. The admin must confirm the new event name and date before saving. In mock mode, duplication is simulated in memory. In Firestore mode, duplication creates a new `events` document and leaves teacher setup data to be entered separately. Parent notes are not duplicated because they are stored only in browser storage.
 
-Teacher assignment management is available for draft events. Admins can add, edit, remove, and toggle availability for event assignments with class, teacher, subject, building, floor, and classroom fields. Active, old, and archived event assignment pages are read-only. The form prevents duplicate class/teacher/subject rows for the same event.
+Teacher assignment management is now split into two parts:
+
+- `teachingAssignments`: reusable school-level class/teacher links with a default subject and optional override rows
+- `eventTeacherSetups`: event-specific building/floor/classroom/availability data
+
+Admins can manage teaching assignments from the class and teacher editors. The default row uses the teacher's default subject, and an `Add another subject` action creates extra subject rows for the same class/teacher when needed. The event setup page only manages teacher location and availability for the selected event. Active, old, and archived event setup pages are read-only. The form prevents duplicate resolved class/teacher/subject rows for teaching assignments and duplicate event/teacher rows for event setups.
 
 Assignment data is handled through dedicated repositories:
 
-- `TeacherRepository.listTeachers()`
+- `TeachingAssignmentRepository.listTeachingAssignmentsForClass(classId)`
+- `TeachingAssignmentRepository.listTeachingAssignmentsForTeacher(teacherId)`
+- `TeachingAssignmentRepository.createTeachingAssignment(input)`
+- `TeachingAssignmentRepository.updateTeachingAssignment(teachingAssignmentId, input)`
+- `TeachingAssignmentRepository.deleteTeachingAssignment(teachingAssignmentId)`
 - `AssignmentRepository.listEventAssignments(eventId)`
 - `AssignmentRepository.createEventAssignment(input)`
 - `AssignmentRepository.updateEventAssignment(assignmentId, input)`
 - `AssignmentRepository.deleteEventAssignment(assignmentId)`
 
-Mock mode writes assignments in memory. Firestore mode writes to `meetingAssignments`, preserving `schoolId` and `eventId`, and sets `createdAt`/`updatedAt` timestamps. Firestore rules require `admin: true` for these writes.
+Mock mode writes teaching assignments and event teacher setups in memory. Firestore mode writes to `teachingAssignments` and `eventTeacherSetups`, preserving `schoolId`, and sets `createdAt`/`updatedAt` timestamps. Firestore rules require `admin: true` for these writes.
 
 Teacher, class, and student master data support minimal create/edit CRUD. Teacher forms manage full name, default subject, and active status. Class forms manage class name, grade, optional class teacher, and active status. Student forms manage school number, full name, required class, and active status. Firestore mode reads/writes `teachers`, `classes`, and `students`; mock mode uses the existing mocked records plus in-memory creates and updates. Active status defaults to active when existing documents do not define `isActive`.
 
@@ -312,27 +360,27 @@ Student import validates `className` against the current class repository. Unmat
 
 Assignment import is also available at `/admin/import` for CSV and XLSX files.
 
-Required assignment import columns:
+This section now imports reusable teaching assignments only, not event-specific location data.
 
-- `eventCode`: required, must match an existing event meeting code
-- `className`: required, must match an existing class and be included in the matched event
+Required teaching assignment import columns:
+
+- `className`: required, must match an existing class
 - `teacherName`: required, must match an existing teacher
-- `subject`: required
-- `building`: required
-- `floor`: required
-- `classroom`: required
-- `isAvailable`: optional, defaults to true
+- `subject`: optional, overrides the teacher default subject when provided
+- `isActive`: optional, defaults to true
 
 Example CSV:
 
 ```csv
-eventCode,className,teacherName,subject,building,floor,classroom,isAvailable
-BAHAR2026,7-B,Ayşe Demir,Türkçe,A,1,A-104,true
-BAHAR2026,6-A,Mehmet Kaya,Matematik,A,1,A-108,true
-BAHAR2026,7-B,Elif Yılmaz,Fen Bilimleri,A,2,A-203,false
+className,teacherName,subject,isActive
+7-B,Ayşe Demir,,true
+6-A,Mehmet Kaya,Matematik,true
+7-B,Elif Yılmaz,Fen Bilimleri,false
 ```
 
-Assignment import validates the event, class, and teacher lookups before import. Rows are rejected when the event code does not match an existing event, the class does not exist, the teacher does not exist, or the class is not included in the matched event. Duplicate event/class/teacher/subject rows produce warnings and are deduped in the bulk upsert path. Repository import uses `AssignmentRepository.bulkUpsertEventAssignments(inputs)` and matches existing assignments by event ID, class ID, teacher ID, and normalized subject within the configured school. Mock mode updates in memory. Firestore mode creates or updates `meetingAssignments` documents, stores `eventId`, `schoolId`, `classId`, `teacherId`, `subject`, `building`, `floor`, `classroom`, and `isAvailable`, and sets `createdAt`/`updatedAt`.
+Teaching assignment import rejects rows when the class or teacher does not exist. Duplicate class/teacher/subject rows produce warnings and are deduped in the bulk upsert path. When `subject` is blank, the import uses the teacher's default subject; when `subject` is filled, it becomes an override for the same class/teacher pair. Repository import uses `TeachingAssignmentRepository.bulkUpsertTeachingAssignments(inputs)` and matches existing assignments by class ID, teacher ID, and normalized resolved subject within the configured school. Mock mode updates in memory. Firestore mode creates or updates `teachingAssignments` documents, stores `schoolId`, `classId`, `teacherId`, `subject`, `subjectOverride`, `isActive`, and `normalizedSubject`, and sets `createdAt`/`updatedAt`.
+
+Event teacher setup remains a separate admin workflow and stores event-specific building, floor, classroom, and availability values in `eventTeacherSetups`.
 
 Each import section on `/admin/import` also includes a CSV template download button. The template metadata is centralized in `src/features/imports/importTemplates.ts`, and the exported files are UTF-8 encoded with a BOM so Turkish characters open correctly in spreadsheet apps. Each template includes one example row.
 
@@ -358,9 +406,10 @@ The UI shows only valid lifecycle actions for the current event status and asks 
 Draft event activation now has readiness guardrails. Before `draft` can move to `active`, the repository validates that:
 
 - the event has at least one included class
-- every included class has at least one assignment
-- every assignment has teacher, subject, building, floor, and classroom
-- every assignment references an active teacher
+- every included class has at least one active teaching assignment
+- every teaching assignment has a teacher and subject
+- every teaching assignment references an active teacher
+- every involved teacher has an event-specific setup with building, floor, and classroom
 - every included class is active
 
 Readiness status is shown on the event detail page and event assignment page. Activation is disabled when readiness has errors. Archive, mark old, and restore behavior is unchanged. Warnings can flag unavailable teachers, classes with only one assignment, and included classes without a visible class teacher.
@@ -424,7 +473,8 @@ Firestore collections used:
 - `students`
 - `teachers`
 - `classes`
-- `meetingAssignments`
+- `teachingAssignments`
+- `eventTeacherSetups`
 
 Seed sample:
 

@@ -15,6 +15,7 @@ import type {
   School,
   Student,
   Teacher,
+  TeachingAssignment,
 } from "../../domain/models";
 import { FirestoreRepositoryError } from "./firestoreErrors";
 import {
@@ -22,12 +23,14 @@ import {
   mapSchool,
   mapStudent,
   mapTeacher,
+  mapTeachingAssignment,
 } from "./firestoreMappers";
 import type {
   FirestoreClassDocument,
   FirestoreEventDocument,
   FirestoreSchoolDocument,
   FirestoreStudentDocument,
+  FirestoreTeachingAssignmentDocument,
   FirestoreTeacherDocument,
 } from "./firestoreTypes";
 
@@ -118,6 +121,84 @@ export async function getTeacherById(
   return mapTeacher(
     teacherSnapshot.id,
     teacherSnapshot.data() as FirestoreTeacherDocument,
+  );
+}
+
+export async function getTeacherByIdOrNull(
+  db: Firestore,
+  teacherId: string,
+): Promise<Teacher | null> {
+  const teacherSnapshot = await getDoc(doc(db, "teachers", teacherId));
+
+  if (!teacherSnapshot.exists()) {
+    return null;
+  }
+
+  return mapTeacher(
+    teacherSnapshot.id,
+    teacherSnapshot.data() as FirestoreTeacherDocument,
+  );
+}
+
+export async function getTeachingAssignmentsForClass(
+  db: Firestore,
+  classId: string,
+): Promise<TeachingAssignment[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(db, "teachingAssignments"),
+      where("classId", "==", classId),
+      limit(100),
+    ),
+  );
+
+  return Promise.all(
+    snapshot.docs.map(async (assignmentDocument) => {
+      const assignmentData =
+        assignmentDocument.data() as FirestoreTeachingAssignmentDocument;
+      const teacher = assignmentData.teacherId
+        ? await getTeacherByIdOrNull(db, assignmentData.teacherId)
+        : null;
+
+      return mapTeachingAssignment({
+        id: assignmentDocument.id,
+        assignmentData,
+        classId: assignmentDocument.data().classId ?? "",
+        teacherId: assignmentDocument.data().teacherId ?? "",
+        teacher,
+      });
+    }),
+  );
+}
+
+export async function getTeachingAssignmentsForTeacher(
+  db: Firestore,
+  teacherId: string,
+): Promise<TeachingAssignment[]> {
+  const snapshot = await getDocs(
+    query(
+      collection(db, "teachingAssignments"),
+      where("teacherId", "==", teacherId),
+      limit(100),
+    ),
+  );
+
+  return Promise.all(
+    snapshot.docs.map(async (assignmentDocument) => {
+      const assignmentData =
+        assignmentDocument.data() as FirestoreTeachingAssignmentDocument;
+      const teacher = assignmentData.teacherId
+        ? await getTeacherByIdOrNull(db, assignmentData.teacherId)
+        : null;
+
+      return mapTeachingAssignment({
+        id: assignmentDocument.id,
+        assignmentData,
+        classId: assignmentDocument.data().classId ?? "",
+        teacherId: assignmentDocument.data().teacherId ?? "",
+        teacher,
+      });
+    }),
   );
 }
 

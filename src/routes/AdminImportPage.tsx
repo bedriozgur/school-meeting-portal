@@ -10,7 +10,6 @@ import type { ImportRowBase } from "../features/imports/types";
 import { useParsedImportFile } from "../features/imports/useParsedImportFile";
 import { useT } from "../hooks/useT";
 import type { TranslationKey } from "../i18n/i18n";
-import { normalizeMeetingCode } from "../repositories/meetingCodes";
 import { repositories } from "../repositories";
 
 type ParsedTeacherRow = ImportRowBase & {
@@ -36,19 +35,14 @@ type ParsedStudentRow = ImportRowBase & {
 };
 
 type ParsedAssignmentRow = ImportRowBase & {
-  availability: "available" | "busy";
-  assignmentKey: string;
-  building: string;
-  classroom: string;
-  classId: string;
   className: string;
-  eventCode: string;
-  eventId: string;
-  floor: number;
-  isAvailable: boolean;
+  classId: string;
+  resolvedSubject: string;
   subject: string;
+  subjectOverride: string | null;
   teacherId: string;
   teacherName: string;
+  isActive: boolean;
 };
 
 export function AdminImportPage() {
@@ -123,22 +117,19 @@ export function AdminImportPage() {
     validateRows: async (rows) =>
       validateAssignmentRows(
         rows,
-        await repositories.meetingRepository.listEvents(),
         await repositories.classRepository.listClasses(),
         await repositories.teacherRepository.listTeachers(),
       ),
     importRows: async (rows) => {
       const result =
-        await repositories.assignmentRepository.bulkUpsertEventAssignments(
+        await repositories.teachingAssignmentRepository.bulkUpsertTeachingAssignments(
           rows.map((row) => ({
-            eventId: row.eventId,
             classId: row.classId,
             teacherId: row.teacherId,
-            subject: row.subject,
-            building: row.building,
-            floor: row.floor,
-            classroom: row.classroom,
-            availability: row.availability,
+            isActive: row.isActive,
+            ...(row.subjectOverride
+              ? { subjectOverride: row.subjectOverride }
+              : {}),
           })),
         );
 
@@ -267,34 +258,24 @@ export function AdminImportPage() {
         templateActions={[assignmentTemplateAction]}
         previewTitleKey={assignmentTemplate.section.previewTitleKey}
         renderPreviewRow={(row) => (
-          <div className="grid gap-3 md:grid-cols-9">
+          <div className="grid gap-3 md:grid-cols-5">
             <PreviewCell
               label={t("admin.importRow")}
               value={String(row.rowNumber)}
             />
-            <PreviewCell label={t("admin.importAssignmentEventCode")} value={row.eventCode} />
             <PreviewCell label={t("admin.className")} value={row.className} />
             <PreviewCell
               label={t("admin.importAssignmentTeacherName")}
               value={row.teacherName}
             />
-            <PreviewCell label={t("admin.assignmentSubject")} value={row.subject} />
             <PreviewCell
-              label={t("admin.importAssignmentBuilding")}
-              value={row.building}
+              label={t("admin.assignmentSubject")}
+              value={row.resolvedSubject || t("admin.masterDataMissingValue")}
             />
             <PreviewCell
-              label={t("admin.importAssignmentFloor")}
-              value={String(row.floor)}
-            />
-            <PreviewCell
-              label={t("admin.importAssignmentClassroom")}
-              value={row.classroom}
-            />
-            <PreviewCell
-              label={t("admin.importAssignmentAvailability")}
+              label={t("admin.statusActive")}
               value={
-                row.isAvailable ? t("dashboard.available") : t("dashboard.busy")
+                row.isActive ? t("admin.statusActive") : t("admin.statusInactive")
               }
             />
           </div>
@@ -458,14 +439,10 @@ function validateStudentRows(
 
 function validateAssignmentRows(
   rawRows: Record<string, unknown>[],
-  events: { id: string; code: string; includedClasses: string[] }[],
   classes: SchoolClass[],
   teachers: Teacher[],
 ) {
   const seenKeys = new Set<string>();
-  const eventByCode = new Map(
-    events.map((event) => [normalizeMeetingCode(event.code), event]),
-  );
   const classByName = new Map(
     classes.map((schoolClass) => [
       schoolClass.name.trim().toLocaleLowerCase("tr"),
@@ -480,28 +457,20 @@ function validateAssignmentRows(
   );
 
   return rawRows.map((row, index) => {
-    const eventCode = String(row.eventCode ?? "").trim();
     const className = String(row.className ?? "").trim();
     const teacherName = String(row.teacherName ?? "").trim();
     const subject = String(row.subject ?? "").trim();
-    const building = String(row.building ?? "").trim();
-    const floorRaw = String(row.floor ?? "").trim();
-    const classroom = String(row.classroom ?? "").trim();
     const errors: TranslationKey[] = [];
     const warnings: TranslationKey[] = [];
-    const event = eventCode ? eventByCode.get(normalizeMeetingCode(eventCode)) : null;
     const schoolClass = className
       ? classByName.get(className.toLocaleLowerCase("tr")) ?? null
       : null;
     const teacher = teacherName
       ? teacherByName.get(teacherName.toLocaleLowerCase("tr")) ?? null
       : null;
-    const floor = Number(floorRaw);
-    const isAvailable = parseIsActive(row.isAvailable);
-
-    if (!eventCode) {
-      errors.push("admin.importAssignmentErrorEventCodeRequired");
-    }
+    const isActive = parseIsActive(row.isActive);
+    const resolvedSubject = subject || teacher?.subject?.trim() || "";
+    const subjectOverride = subject || null;
 
     if (!className) {
       errors.push("admin.importAssignmentErrorClassNameRequired");
@@ -511,24 +480,8 @@ function validateAssignmentRows(
       errors.push("admin.importAssignmentErrorTeacherNameRequired");
     }
 
-    if (!subject) {
-      errors.push("admin.importAssignmentErrorSubjectRequired");
-    }
-
-    if (!building) {
-      errors.push("admin.importAssignmentErrorBuildingRequired");
-    }
-
-    if (!floorRaw || !Number.isFinite(floor)) {
-      errors.push("admin.importAssignmentErrorFloorRequired");
-    }
-
-    if (!classroom) {
-      errors.push("admin.importAssignmentErrorClassroomRequired");
-    }
-
-    if (eventCode && !event) {
-      errors.push("admin.importAssignmentErrorEventNotFound");
+    if (!subject && teacher && !teacher.subject.trim()) {
+      errors.push("admin.importAssignmentErrorSubjectMissing");
     }
 
     if (className && !schoolClass) {
@@ -539,19 +492,10 @@ function validateAssignmentRows(
       errors.push("admin.importAssignmentErrorTeacherNotFound");
     }
 
-    if (
-      event &&
-      schoolClass &&
-      !event.includedClasses.includes(schoolClass.id)
-    ) {
-      errors.push("admin.importAssignmentErrorClassNotIncluded");
-    }
-
     const assignmentKey = [
-      event?.id ?? normalizeMeetingCode(eventCode),
       schoolClass?.id ?? className.toLocaleLowerCase("tr"),
       teacher?.id ?? teacherName.toLocaleLowerCase("tr"),
-      subject.toLocaleLowerCase("tr"),
+      resolvedSubject.toLocaleLowerCase("tr"),
     ].join("|");
 
     if (assignmentKey && seenKeys.has(assignmentKey)) {
@@ -564,18 +508,14 @@ function validateAssignmentRows(
 
     return {
       assignmentKey,
-      availability: isAvailable ? ("available" as const) : ("busy" as const),
-      building,
-      classroom,
       classId: schoolClass?.id ?? "",
       className,
       errors,
-      eventCode: event?.code ?? normalizeMeetingCode(eventCode),
-      eventId: event?.id ?? "",
-      floor: Number.isFinite(floor) ? floor : 0,
-      isAvailable,
+      isActive,
+      resolvedSubject,
       rowNumber: index + 2,
       subject,
+      subjectOverride,
       teacherId: teacher?.id ?? "",
       teacherName,
       warnings,

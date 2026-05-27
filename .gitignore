@@ -3,3 +3,6 @@ dist/
 .env
 .env.local
 .local-jdk/
+*.service-account.json
+*service-account*.json
+firebase-service-account*.json

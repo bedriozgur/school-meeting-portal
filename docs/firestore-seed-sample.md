@@ -89,15 +89,52 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 }
 ```
 
-## `meetingAssignments/assignment-ayse-demir-7-b`
+## `teachingAssignments/teaching-ayse-demir-7-b`
+
+```json
+{
+  "schoolId": "atatürk-ortaokulu",
+  "teacherId": "ayse-demir",
+  "classId": "class-7-b",
+  "subject": "",
+  "subjectOverride": null,
+  "isActive": true
+}
+```
+
+## `teachingAssignments/teaching-mehmet-kaya-7-b`
+
+```json
+{
+  "schoolId": "atatürk-ortaokulu",
+  "teacherId": "mehmet-kaya",
+  "classId": "class-7-b",
+  "subject": "",
+  "subjectOverride": null,
+  "isActive": true
+}
+```
+
+## `teachingAssignments/teaching-mehmet-kaya-7-b-geometry`
+
+```json
+{
+  "schoolId": "atatürk-ortaokulu",
+  "teacherId": "mehmet-kaya",
+  "classId": "class-7-b",
+  "subject": "",
+  "subjectOverride": "Geometri",
+  "isActive": true
+}
+```
+
+## `eventTeacherSetups/setup-ayse-demir-spring-2026-parent-meetings`
 
 ```json
 {
   "eventId": "spring-2026-parent-meetings",
   "schoolId": "atatürk-ortaokulu",
   "teacherId": "ayse-demir",
-  "classId": "class-7-b",
-  "subject": "Türkçe",
   "building": "A",
   "floor": 1,
   "classroom": "A-104",
@@ -105,15 +142,13 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 }
 ```
 
-## `meetingAssignments/assignment-mehmet-kaya-7-b`
+## `eventTeacherSetups/setup-mehmet-kaya-spring-2026-parent-meetings`
 
 ```json
 {
   "eventId": "spring-2026-parent-meetings",
   "schoolId": "atatürk-ortaokulu",
   "teacherId": "mehmet-kaya",
-  "classId": "class-7-b",
-  "subject": "Matematik",
   "building": "A",
   "floor": 1,
   "classroom": "A-108",

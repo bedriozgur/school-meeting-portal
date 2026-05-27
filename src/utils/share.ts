@@ -30,9 +30,14 @@ export function buildNotesSummary(params: {
       ? t("summary.visited")
       : t("summary.notVisited");
     const notes = state?.notes.trim() || t("summary.noNotes");
+    const location = assignment.locationMissing
+      ? t("summary.locationMissing")
+      : `${assignment.building}/${assignment.floor}/${assignment.classroom}`;
 
     lines.push(
-      `${assignment.teacher.name} - ${assignment.subject} - ${assignment.building}/${assignment.floor}/${assignment.classroom}`,
+      `${assignment.teacher.name} - ${
+        assignment.subject || t("admin.masterDataMissingValue")
+      } - ${location}`,
       `${status}: ${notes}`,
       "",
     );

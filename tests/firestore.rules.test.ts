@@ -85,12 +85,17 @@ beforeEach(async () => {
         grade: "7",
         classTeacherId: "teacher-1",
       }),
-      setDoc(doc(db, "meetingAssignments", "assignment-1"), {
-        eventId: "event-active",
+      setDoc(doc(db, "teachingAssignments", "teaching-1"), {
         schoolId: "school-1",
         teacherId: "teacher-1",
         classId: "class-7-b",
         subject: "Türkçe",
+        isActive: true,
+      }),
+      setDoc(doc(db, "eventTeacherSetups", "setup-1"), {
+        eventId: "event-active",
+        schoolId: "school-1",
+        teacherId: "teacher-1",
         building: "A",
         floor: 1,
         classroom: "A-104",
@@ -213,7 +218,8 @@ describe("writes", () => {
     "students",
     "teachers",
     "classes",
-    "meetingAssignments",
+    "teachingAssignments",
+    "eventTeacherSetups",
   ];
 
   for (const collectionName of collections) {
@@ -310,38 +316,62 @@ describe("students", () => {
   });
 });
 
-describe("meetingAssignments", () => {
-  it("denies direct public get", async () => {
-    await assertFails(
-      getDoc(doc(publicDb(), "meetingAssignments", "assignment-1")),
-    );
+describe("teachingAssignments", () => {
+  it("denies public get", async () => {
+    const db = publicDb();
+
+    await assertFails(getDoc(doc(db, "teachingAssignments", "teaching-1")));
   });
 
-  it("allows limited assignment query when limit is <= 50", async () => {
+  it("allows limited public query when limit is <= 100", async () => {
     const db = publicDb();
+
+    await assertFails(
+      getDocs(
+        query(
+          collection(db, "teachingAssignments"),
+          where("schoolId", "==", "school-1"),
+        ),
+      ),
+    );
 
     await assertSucceeds(
       getDocs(
         query(
-          collection(db, "meetingAssignments"),
-          where("eventId", "==", "event-active"),
+          collection(db, "teachingAssignments"),
           where("schoolId", "==", "school-1"),
-          where("classId", "==", "class-7-b"),
-          limit(50),
+          limit(100),
         ),
       ),
     );
   });
+});
 
-  it("denies assignment list query when limit is > 50", async () => {
+describe("eventTeacherSetups", () => {
+  it("denies public get", async () => {
+    const db = publicDb();
+
+    await assertFails(getDoc(doc(db, "eventTeacherSetups", "setup-1")));
+  });
+
+  it("allows limited public query when limit is <= 100", async () => {
     const db = publicDb();
 
     await assertFails(
       getDocs(
         query(
-          collection(db, "meetingAssignments"),
+          collection(db, "eventTeacherSetups"),
           where("eventId", "==", "event-active"),
-          limit(51),
+        ),
+      ),
+    );
+
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(db, "eventTeacherSetups"),
+          where("eventId", "==", "event-active"),
+          limit(100),
         ),
       ),
     );
@@ -370,8 +400,10 @@ function existingDocumentId(collectionName: string): string {
       return "teacher-1";
     case "classes":
       return "class-7-b";
-    case "meetingAssignments":
-      return "assignment-1";
+    case "teachingAssignments":
+      return "teaching-1";
+    case "eventTeacherSetups":
+      return "setup-1";
     default:
       return "unknown";
   }
