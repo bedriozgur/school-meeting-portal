@@ -52,175 +52,276 @@ export async function findActiveOrDraftEventByCode(
   meetingCode: string,
 ): Promise<MeetingEvent | null> {
   const normalizedCode = meetingCode.trim().toUpperCase();
-  logFirestoreParentLookup("event lookup query", {
-    meetingCode: normalizedCode,
-    status: ["active", "draft"],
-    limit: 1,
-  });
-  const eventQuery = query(
-    collection(db, "events"),
-    where("meetingCode", "==", normalizedCode),
-    where("status", "in", ["active", "draft"]),
-    limit(1),
-  );
-  const snapshot = await getDocs(eventQuery);
-  logFirestoreParentLookup("event lookup result", {
-    meetingCode: normalizedCode,
-    docsCount: snapshot.docs.length,
-  });
-  const eventDocument = snapshot.docs[0] as
-    | QueryDocumentSnapshot<FirestoreEventDocument>
-    | undefined;
-
-  if (!eventDocument) {
-    logFirestoreParentLookup("event lookup rejected", {
+  return runFirestoreParentLookupStep("event lookup", { meetingCode: normalizedCode }, async () => {
+    logFirestoreParentLookup("event query start", {
       meetingCode: normalizedCode,
-      reason: "inactive-or-missing-event",
+      constraints: {
+        meetingCode: normalizedCode,
+        status: ["active", "draft"],
+        limit: 1,
+      },
     });
-    return null;
-  }
 
-  logFirestoreParentLookup("event lookup resolved", {
-    meetingCode: normalizedCode,
-    eventId: eventDocument.id,
-    schoolId: String(eventDocument.data().schoolId ?? "").trim(),
-    status: String(eventDocument.data().status ?? ""),
-    includedClasses: eventDocument.data().includedClasses ?? [],
+    try {
+      const eventQuery = query(
+        collection(db, "events"),
+        where("meetingCode", "==", normalizedCode),
+        where("status", "in", ["active", "draft"]),
+        limit(1),
+      );
+      const snapshot = await getDocs(eventQuery);
+      logFirestoreParentLookup("event query resolved", {
+        meetingCode: normalizedCode,
+        docsCount: snapshot.docs.length,
+      });
+
+      const eventDocument = snapshot.docs[0] as
+        | QueryDocumentSnapshot<FirestoreEventDocument>
+        | undefined;
+
+      if (!eventDocument) {
+        logFirestoreParentLookup("event lookup rejected", {
+          meetingCode: normalizedCode,
+          reason: "inactive-or-missing-event",
+        });
+        return null;
+      }
+
+      logFirestoreParentLookup("event resolved", {
+        meetingCode: normalizedCode,
+        eventId: eventDocument.id,
+        schoolId: String(eventDocument.data().schoolId ?? "").trim(),
+        status: String(eventDocument.data().status ?? ""),
+        includedClasses: eventDocument.data().includedClasses ?? [],
+      });
+
+      return mapMeetingEvent(eventDocument.id, eventDocument.data());
+    } catch (error) {
+      logFirestoreParentLookupError("event lookup", error, {
+        meetingCode: normalizedCode,
+      });
+      throw error;
+    }
   });
-
-  return mapMeetingEvent(eventDocument.id, eventDocument.data());
 }
 
 export async function getSchoolById(
   db: Firestore,
   schoolId: string,
 ): Promise<School> {
-  const schoolSnapshot = await getDoc(doc(db, "schools", schoolId));
+  return runFirestoreParentLookupStep("school lookup", { schoolId }, async () => {
+    try {
+      logFirestoreParentLookup("school lookup started", { schoolId });
+      const schoolSnapshot = await getDoc(doc(db, "schools", schoolId));
 
-  if (!schoolSnapshot.exists()) {
-    throw new FirestoreRepositoryError(
-      "missing-school",
-      `School document ${schoolId} was not found.`,
-    );
-  }
+      if (!schoolSnapshot.exists()) {
+        const error = new FirestoreRepositoryError(
+          "missing-school",
+          `School document ${schoolId} was not found.`,
+        );
+        logFirestoreParentLookupError("school lookup", error, { schoolId });
+        throw error;
+      }
 
-  return mapSchool(
-    schoolSnapshot.id,
-    schoolSnapshot.data() as FirestoreSchoolDocument,
-  );
+      logFirestoreParentLookup("school lookup resolved", { schoolId, schoolDocumentId: schoolSnapshot.id });
+      return mapSchool(
+        schoolSnapshot.id,
+        schoolSnapshot.data() as FirestoreSchoolDocument,
+      );
+    } catch (error) {
+      if (!(error instanceof FirestoreRepositoryError && error.code === "missing-school")) {
+        logFirestoreParentLookupError("school lookup", error, { schoolId });
+      }
+      throw error;
+    }
+  });
 }
 
 export async function getClassById(
   db: Firestore,
   classId: string,
 ): Promise<FirestoreClassDocument> {
-  const classSnapshot = await getDoc(doc(db, "classes", classId));
+  return runFirestoreParentLookupStep("class lookup", { classId }, async () => {
+    try {
+      logFirestoreParentLookup("class lookup started", { classId });
+      const classSnapshot = await getDoc(doc(db, "classes", classId));
 
-  if (!classSnapshot.exists()) {
-    throw new FirestoreRepositoryError(
-      "missing-class",
-      `Class document ${classId} was not found.`,
-    );
-  }
+      if (!classSnapshot.exists()) {
+        const error = new FirestoreRepositoryError(
+          "missing-class",
+          `Class document ${classId} was not found.`,
+        );
+        logFirestoreParentLookupError("class lookup", error, { classId });
+        throw error;
+      }
 
-  return classSnapshot.data() as FirestoreClassDocument;
+      logFirestoreParentLookup("class lookup resolved", { classId, classDocumentId: classSnapshot.id });
+      return classSnapshot.data() as FirestoreClassDocument;
+    } catch (error) {
+      if (!(error instanceof FirestoreRepositoryError && error.code === "missing-class")) {
+        logFirestoreParentLookupError("class lookup", error, { classId });
+      }
+      throw error;
+    }
+  });
 }
 
 export async function getTeacherById(
   db: Firestore,
   teacherId: string,
 ): Promise<Teacher> {
-  const teacherSnapshot = await getDoc(doc(db, "teachers", teacherId));
+  return runFirestoreParentLookupStep("teacher lookup", { teacherId }, async () => {
+    try {
+      logFirestoreParentLookup("teacher lookup started", { teacherId });
+      const teacherSnapshot = await getDoc(doc(db, "teachers", teacherId));
 
-  if (!teacherSnapshot.exists()) {
-    throw new FirestoreRepositoryError(
-      "missing-teacher",
-      `Teacher document ${teacherId} was not found.`,
-    );
-  }
+      if (!teacherSnapshot.exists()) {
+        const error = new FirestoreRepositoryError(
+          "missing-teacher",
+          `Teacher document ${teacherId} was not found.`,
+        );
+        logFirestoreParentLookupError("teacher lookup", error, { teacherId });
+        throw error;
+      }
 
-  return mapTeacher(
-    teacherSnapshot.id,
-    teacherSnapshot.data() as FirestoreTeacherDocument,
-  );
+      logFirestoreParentLookup("teacher lookup resolved", { teacherId, teacherDocumentId: teacherSnapshot.id });
+      return mapTeacher(
+        teacherSnapshot.id,
+        teacherSnapshot.data() as FirestoreTeacherDocument,
+      );
+    } catch (error) {
+      if (!(error instanceof FirestoreRepositoryError && error.code === "missing-teacher")) {
+        logFirestoreParentLookupError("teacher lookup", error, { teacherId });
+      }
+      throw error;
+    }
+  });
 }
 
 export async function getTeacherByIdOrNull(
   db: Firestore,
   teacherId: string,
 ): Promise<Teacher | null> {
-  const teacherSnapshot = await getDoc(doc(db, "teachers", teacherId));
+  return runFirestoreParentLookupStep("teacher lookup optional", { teacherId }, async () => {
+    try {
+      logFirestoreParentLookup("teacher lookup started", { teacherId });
+      const teacherSnapshot = await getDoc(doc(db, "teachers", teacherId));
 
-  if (!teacherSnapshot.exists()) {
-    return null;
-  }
+      if (!teacherSnapshot.exists()) {
+        logFirestoreParentLookup("teacher lookup resolved", { teacherId, found: false });
+        return null;
+      }
 
-  return mapTeacher(
-    teacherSnapshot.id,
-    teacherSnapshot.data() as FirestoreTeacherDocument,
-  );
+      logFirestoreParentLookup("teacher lookup resolved", { teacherId, found: true, teacherDocumentId: teacherSnapshot.id });
+      return mapTeacher(
+        teacherSnapshot.id,
+        teacherSnapshot.data() as FirestoreTeacherDocument,
+      );
+    } catch (error) {
+      logFirestoreParentLookupError("teacher lookup optional", error, { teacherId });
+      throw error;
+    }
+  });
 }
 
 export async function getTeachingAssignmentsForClass(
   db: Firestore,
   classId: string,
 ): Promise<TeachingAssignment[]> {
-  const snapshot = await getDocs(
-    query(
-      collection(db, "teachingAssignments"),
-      where("classId", "==", classId),
-      limit(100),
-    ),
-  );
-
-  return Promise.all(
-    snapshot.docs.map(async (assignmentDocument) => {
-      const assignmentData =
-        assignmentDocument.data() as FirestoreTeachingAssignmentDocument;
-      const teacher = assignmentData.teacherId
-        ? await getTeacherByIdOrNull(db, assignmentData.teacherId)
-        : null;
-
-      return mapTeachingAssignment({
-        id: assignmentDocument.id,
-        assignmentData,
-        classId: assignmentDocument.data().classId ?? "",
-        teacherId: assignmentDocument.data().teacherId ?? "",
-        teacher,
+  return runFirestoreParentLookupStep("teachingAssignments lookup", { classId }, async () => {
+    try {
+      logFirestoreParentLookup("teachingAssignments query started", {
+        classId,
+        queryField: "classId",
+        queryValueType: "string",
+        limit: 100,
       });
-    }),
-  );
+      const snapshot = await getDocs(
+        query(
+          collection(db, "teachingAssignments"),
+          where("classId", "==", classId),
+          limit(100),
+        ),
+      );
+      logFirestoreParentLookup("teachingAssignments query resolved", {
+        classId,
+        docsCount: snapshot.docs.length,
+      });
+
+      const assignments = await Promise.all(
+        snapshot.docs.map(async (assignmentDocument) => {
+          const assignmentData =
+            assignmentDocument.data() as FirestoreTeachingAssignmentDocument;
+          const teacher = assignmentData.teacherId
+            ? await getTeacherByIdOrNull(db, assignmentData.teacherId)
+            : null;
+
+          return mapTeachingAssignment({
+            id: assignmentDocument.id,
+            assignmentData,
+            classId: assignmentDocument.data().classId ?? "",
+            teacherId: assignmentDocument.data().teacherId ?? "",
+            teacher,
+          });
+        }),
+      );
+
+      return assignments;
+    } catch (error) {
+      logFirestoreParentLookupError("teachingAssignments lookup", error, { classId });
+      throw error;
+    }
+  });
 }
 
 export async function getTeachingAssignmentsForTeacher(
   db: Firestore,
   teacherId: string,
 ): Promise<TeachingAssignment[]> {
-  const snapshot = await getDocs(
-    query(
-      collection(db, "teachingAssignments"),
-      where("teacherId", "==", teacherId),
-      limit(100),
-    ),
-  );
-
-  return Promise.all(
-    snapshot.docs.map(async (assignmentDocument) => {
-      const assignmentData =
-        assignmentDocument.data() as FirestoreTeachingAssignmentDocument;
-      const teacher = assignmentData.teacherId
-        ? await getTeacherByIdOrNull(db, assignmentData.teacherId)
-        : null;
-
-      return mapTeachingAssignment({
-        id: assignmentDocument.id,
-        assignmentData,
-        classId: assignmentDocument.data().classId ?? "",
-        teacherId: assignmentDocument.data().teacherId ?? "",
-        teacher,
+  return runFirestoreParentLookupStep("teachingAssignments lookup", { teacherId }, async () => {
+    try {
+      logFirestoreParentLookup("teachingAssignments query started", {
+        teacherId,
+        queryField: "teacherId",
+        queryValueType: "string",
+        limit: 100,
       });
-    }),
-  );
+      const snapshot = await getDocs(
+        query(
+          collection(db, "teachingAssignments"),
+          where("teacherId", "==", teacherId),
+          limit(100),
+        ),
+      );
+      logFirestoreParentLookup("teachingAssignments query resolved", {
+        teacherId,
+        docsCount: snapshot.docs.length,
+      });
+
+      const assignments = await Promise.all(
+        snapshot.docs.map(async (assignmentDocument) => {
+          const assignmentData =
+            assignmentDocument.data() as FirestoreTeachingAssignmentDocument;
+          const teacher = assignmentData.teacherId
+            ? await getTeacherByIdOrNull(db, assignmentData.teacherId)
+            : null;
+
+          return mapTeachingAssignment({
+            id: assignmentDocument.id,
+            assignmentData,
+            classId: assignmentDocument.data().classId ?? "",
+            teacherId: assignmentDocument.data().teacherId ?? "",
+            teacher,
+          });
+        }),
+      );
+
+      return assignments;
+    } catch (error) {
+      logFirestoreParentLookupError("teachingAssignments lookup", error, { teacherId });
+      throw error;
+    }
+  });
 }
 
 export async function findStudentForEvent(params: {
@@ -326,6 +427,97 @@ function logFirestoreParentLookup(
   }
 
   console.info(`[Firestore parent lookup] ${message}`, details);
+}
+
+function logFirestoreParentLookupError(
+  step: string,
+  error: unknown,
+  details: Record<string, unknown>,
+) {
+  if (!isDevelopmentEnvironment()) {
+    return;
+  }
+
+  console.error(`[Firestore parent lookup] ${step} failed`, {
+    step,
+    errorMessage: getErrorMessage(error),
+    errorCode: getFirebaseErrorCode(error),
+    details: stringifySafe(details),
+    error: stringifySafe(error),
+  });
+}
+
+async function runFirestoreParentLookupStep<T>(
+  step: string,
+  details: Record<string, unknown>,
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (isDevelopmentEnvironment()) {
+    console.info(`[Firestore parent lookup] ${step} started`, stringifySafe(details));
+  }
+
+  try {
+    const result = await fn();
+    if (isDevelopmentEnvironment()) {
+      console.info(`[Firestore parent lookup] ${step} resolved`, stringifySafe(details));
+    }
+    return result;
+  } catch (error) {
+    logFirestoreParentLookupError(step, error, details);
+    throw error;
+  }
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function getFirebaseErrorCode(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+  ) {
+    return (error as { code: string }).code;
+  }
+
+  return undefined;
+}
+
+function stringifySafe(value: unknown) {
+  try {
+    return JSON.parse(
+      JSON.stringify(value, (_key, nestedValue) => {
+        if (nestedValue instanceof Error) {
+          return {
+            name: nestedValue.name,
+            message: nestedValue.message,
+            code: getFirebaseErrorCode(nestedValue),
+          };
+        }
+
+        if (typeof nestedValue === "bigint") {
+          return nestedValue.toString();
+        }
+
+        if (typeof nestedValue === "function") {
+          return "[Function]";
+        }
+
+        return nestedValue;
+      }),
+    ) as unknown;
+  } catch {
+    return {
+      serializationFailed: true,
+      value: String(value),
+    };
+  }
 }
 
 function isDevelopmentEnvironment() {

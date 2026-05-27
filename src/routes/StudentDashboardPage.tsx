@@ -55,11 +55,16 @@ export function StudentDashboardPage() {
         setParentMeetingView(view);
         setStatus(view ? "success" : "error");
       })
-      .catch(() => {
+      .catch((error) => {
         if (!isCurrent) {
           return;
         }
 
+        console.error("Failed to load student dashboard.", {
+          meetingCode: decodedMeetingCode,
+          schoolNumber: decodedSchoolNumber,
+          error,
+        });
         setStatus("error");
       });
 
