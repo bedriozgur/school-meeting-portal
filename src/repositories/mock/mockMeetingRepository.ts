@@ -16,18 +16,19 @@ import { getTeachingAssignmentsForClass } from "./mockTeachingAssignmentReposito
 import { getEventTeacherSetupsForEvent } from "./mockAssignmentRepository";
 import {
   generateUniqueMeetingCode,
+  buildMeetingCodeLookupCandidates,
   normalizeMeetingCode,
 } from "../meetingCodes";
 import type { EventFormInput, EventTeacherSetupOverview } from "../../domain/models";
 
 export const mockMeetingRepository: MeetingRepository = {
   async findByCode(meetingCode) {
-    const normalizedCode = meetingCode.trim().toUpperCase();
+    const candidateCodes = new Set(buildMeetingCodeLookupCandidates(meetingCode));
 
     return (
       mockMeetingEvents.find(
         (meeting) =>
-          meeting.code === normalizedCode &&
+          candidateCodes.has(meeting.code.trim().toUpperCase()) &&
           ["active", "draft"].includes(meeting.status),
       ) ??
       null
@@ -71,11 +72,11 @@ export const mockMeetingRepository: MeetingRepository = {
     });
   },
   async isMeetingCodeAvailable(meetingCode, excludingEventId) {
-    const normalizedCode = normalizeMeetingCode(meetingCode);
+    const candidateCodes = new Set(buildMeetingCodeLookupCandidates(meetingCode));
 
     return !mockMeetingEvents.some(
       (event) =>
-        event.code === normalizedCode &&
+        candidateCodes.has(event.code.trim().toUpperCase()) &&
         (!excludingEventId || event.id !== excludingEventId),
     );
   },

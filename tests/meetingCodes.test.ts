@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { generateMeetingCode, normalizeMeetingCode } from "../src/repositories/meetingCodes";
+import {
+  buildMeetingCodeLookupCandidates,
+  generateMeetingCode,
+  normalizeMeetingCode,
+} from "../src/repositories/meetingCodes";
 
 describe("meeting codes", () => {
   afterEach(() => {
@@ -14,6 +18,21 @@ describe("meeting codes", () => {
   it("keeps legacy numeric codes intact", () => {
     expect(normalizeMeetingCode("bahar2026")).toBe("BAHAR2026");
     expect(normalizeMeetingCode("  123456  ")).toBe("123456");
+  });
+
+  it("builds lookup candidates for dashed and legacy codes", () => {
+    expect(buildMeetingCodeLookupCandidates("TEDBRS")).toEqual(
+      expect.arrayContaining(["TEDBRS", "TED-BRS"]),
+    );
+    expect(buildMeetingCodeLookupCandidates("TED-BRS")).toEqual(
+      expect.arrayContaining(["TED-BRS", "TEDBRS"]),
+    );
+    expect(buildMeetingCodeLookupCandidates("JTA-026")).toEqual(
+      expect.arrayContaining(["JTA-026", "JTA026"]),
+    );
+    expect(buildMeetingCodeLookupCandidates("BAHAR2026")).toEqual(
+      expect.arrayContaining(["BAHAR2026"]),
+    );
   });
 
   it("generates letter-only codes with a dash", () => {

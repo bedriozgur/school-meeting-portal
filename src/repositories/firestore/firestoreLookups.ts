@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { getFirebaseFirestore } from "../../lib/firebase";
 import { DEFAULT_SCHOOL_ID } from "../../config/school";
+import { buildMeetingCodeLookupCandidates } from "../meetingCodes";
 import type {
   MeetingEvent,
   School,
@@ -53,57 +54,67 @@ export async function findActiveOrDraftEventByCode(
   meetingCode: string,
 ): Promise<MeetingEvent | null> {
   const normalizedCode = meetingCode.trim().toUpperCase();
-  return runFirestoreParentLookupStep("event lookup", { meetingCode: normalizedCode }, async () => {
+  const candidateCodes = buildMeetingCodeLookupCandidates(meetingCode);
+
+  return runFirestoreParentLookupStep("event lookup", { meetingCode: normalizedCode, candidateCodes }, async () => {
     logFirestoreParentLookup("event query start", {
       meetingCode: normalizedCode,
+      candidateCodes,
       constraints: {
-        meetingCode: normalizedCode,
         status: ["active", "draft"],
         limit: 1,
       },
     });
 
-    try {
-      const eventQuery = query(
-        collection(db, "events"),
-        where("schoolId", "==", DEFAULT_SCHOOL_ID),
-        where("meetingCode", "==", normalizedCode),
-        where("status", "in", ["active", "draft"]),
-        limit(1),
-      );
-      const snapshot = await getDocs(eventQuery);
-      logFirestoreParentLookup("event query resolved", {
-        meetingCode: normalizedCode,
-        docsCount: snapshot.docs.length,
-      });
-
-      const eventDocument = snapshot.docs[0] as
-        | QueryDocumentSnapshot<FirestoreEventDocument>
-        | undefined;
-
-      if (!eventDocument) {
-        logFirestoreParentLookup("event lookup rejected", {
+    for (const candidateCode of candidateCodes) {
+      try {
+        const eventQuery = query(
+          collection(db, "events"),
+          where("schoolId", "==", DEFAULT_SCHOOL_ID),
+          where("meetingCode", "==", candidateCode),
+          where("status", "in", ["active", "draft"]),
+          limit(1),
+        );
+        const snapshot = await getDocs(eventQuery);
+        logFirestoreParentLookup("event query resolved", {
           meetingCode: normalizedCode,
-          reason: "inactive-or-missing-event",
+          candidateCode,
+          docsCount: snapshot.docs.length,
         });
-        return null;
+
+        const eventDocument = snapshot.docs[0] as
+          | QueryDocumentSnapshot<FirestoreEventDocument>
+          | undefined;
+
+        if (!eventDocument) {
+          continue;
+        }
+
+        logFirestoreParentLookup("event resolved", {
+          meetingCode: normalizedCode,
+          candidateCode,
+          eventId: eventDocument.id,
+          schoolId: String(eventDocument.data().schoolId ?? "").trim(),
+          status: String(eventDocument.data().status ?? ""),
+          includedClasses: eventDocument.data().includedClasses ?? [],
+        });
+
+        return mapMeetingEvent(eventDocument.id, eventDocument.data());
+      } catch (error) {
+        logFirestoreParentLookupError("event lookup", error, {
+          meetingCode: normalizedCode,
+          candidateCode,
+        });
+        throw error;
       }
-
-      logFirestoreParentLookup("event resolved", {
-        meetingCode: normalizedCode,
-        eventId: eventDocument.id,
-        schoolId: String(eventDocument.data().schoolId ?? "").trim(),
-        status: String(eventDocument.data().status ?? ""),
-        includedClasses: eventDocument.data().includedClasses ?? [],
-      });
-
-      return mapMeetingEvent(eventDocument.id, eventDocument.data());
-    } catch (error) {
-      logFirestoreParentLookupError("event lookup", error, {
-        meetingCode: normalizedCode,
-      });
-      throw error;
     }
+
+    logFirestoreParentLookup("event lookup rejected", {
+      meetingCode: normalizedCode,
+      candidateCodes,
+      reason: "inactive-or-missing-event",
+    });
+    return null;
   });
 }
 

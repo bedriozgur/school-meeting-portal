@@ -43,6 +43,7 @@ import type {
 } from "./firestoreTypes";
 import {
   generateUniqueMeetingCode,
+  buildMeetingCodeLookupCandidates,
   normalizeMeetingCode,
 } from "../meetingCodes";
 
@@ -289,19 +290,28 @@ export const firestoreMeetingRepository: MeetingRepository = {
   },
   async isMeetingCodeAvailable(meetingCode, excludingEventId) {
     const db = requireFirestore();
-    const normalizedCode = normalizeMeetingCode(meetingCode);
-    const snapshot = await getDocs(
-      query(
-        collection(db, "events"),
-        where("meetingCode", "==", normalizedCode),
-        limit(2),
-      ),
-    );
+    const candidateCodes = buildMeetingCodeLookupCandidates(meetingCode);
 
-    return !snapshot.docs.some(
-      (eventDocument) =>
-        !excludingEventId || eventDocument.id !== excludingEventId,
-    );
+    for (const candidateCode of candidateCodes) {
+      const snapshot = await getDocs(
+        query(
+          collection(db, "events"),
+          where("meetingCode", "==", candidateCode),
+          limit(2),
+        ),
+      );
+
+      if (
+        snapshot.docs.some(
+          (eventDocument) =>
+            !excludingEventId || eventDocument.id !== excludingEventId,
+        )
+      ) {
+        return false;
+      }
+    }
+
+    return true;
   },
   async activateEvent(eventId) {
     return updateFirestoreEventStatus(eventId, "activate");

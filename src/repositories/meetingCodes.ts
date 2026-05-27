@@ -26,6 +26,32 @@ export function normalizeMeetingCode(meetingCode: string): string {
   return cleaned;
 }
 
+export function buildMeetingCodeLookupCandidates(
+  meetingCode: string,
+): string[] {
+  const trimmed = meetingCode.trim().toUpperCase();
+
+  if (!trimmed) {
+    return [];
+  }
+
+  const cleaned = trimmed.replace(/[^A-Z0-9]/g, "");
+  const normalized = normalizeMeetingCode(trimmed);
+  const candidates = new Set<string>();
+
+  [trimmed, cleaned, normalized].forEach((candidate) => {
+    if (candidate) {
+      candidates.add(candidate);
+    }
+  });
+
+  if (cleaned.length === 6) {
+    candidates.add(`${cleaned.slice(0, 3)}-${cleaned.slice(3)}`);
+  }
+
+  return [...candidates];
+}
+
 export async function generateUniqueMeetingCode(
   isAvailable: (meetingCode: string) => Promise<boolean>,
   maxAttempts = defaultMaxAttempts,
