@@ -52,6 +52,11 @@ export async function findActiveOrDraftEventByCode(
   meetingCode: string,
 ): Promise<MeetingEvent | null> {
   const normalizedCode = meetingCode.trim().toUpperCase();
+  logFirestoreParentLookup("event lookup query", {
+    meetingCode: normalizedCode,
+    status: ["active", "draft"],
+    limit: 1,
+  });
   const eventQuery = query(
     collection(db, "events"),
     where("meetingCode", "==", normalizedCode),
@@ -59,13 +64,29 @@ export async function findActiveOrDraftEventByCode(
     limit(1),
   );
   const snapshot = await getDocs(eventQuery);
+  logFirestoreParentLookup("event lookup result", {
+    meetingCode: normalizedCode,
+    docsCount: snapshot.docs.length,
+  });
   const eventDocument = snapshot.docs[0] as
     | QueryDocumentSnapshot<FirestoreEventDocument>
     | undefined;
 
   if (!eventDocument) {
+    logFirestoreParentLookup("event lookup rejected", {
+      meetingCode: normalizedCode,
+      reason: "inactive-or-missing-event",
+    });
     return null;
   }
+
+  logFirestoreParentLookup("event lookup resolved", {
+    meetingCode: normalizedCode,
+    eventId: eventDocument.id,
+    schoolId: String(eventDocument.data().schoolId ?? "").trim(),
+    status: String(eventDocument.data().status ?? ""),
+    includedClasses: eventDocument.data().includedClasses ?? [],
+  });
 
   return mapMeetingEvent(eventDocument.id, eventDocument.data());
 }
@@ -214,25 +235,72 @@ export async function findStudentForEvent(params: {
     return null;
   }
 
-  const studentQuery = query(
-    collection(db, "students"),
-    where("schoolNumber", "==", schoolNumber.trim()),
-    where("schoolId", "==", event.schoolId),
-    limit(1),
-  );
-  const snapshot = await getDocs(studentQuery);
-  const studentDocument = snapshot.docs[0] as
-    | QueryDocumentSnapshot<FirestoreStudentDocument>
-    | undefined;
+  const trimmedSchoolNumber = String(schoolNumber ?? "").trim();
+  const normalizedSchoolNumber = normalizeSchoolNumber(trimmedSchoolNumber);
+  logFirestoreParentLookup("student lookup start", {
+    eventId: event.id,
+    eventSchoolId: String(event.schoolId ?? "").trim(),
+    studentSchoolNumber: trimmedSchoolNumber,
+    studentNormalizedSchoolNumber: normalizedSchoolNumber,
+    includedClasses: event.includedClasses,
+  });
+
+  const studentDocument =
+    (await findStudentDocumentBySchoolNumber(db, event.schoolId, trimmedSchoolNumber)) ??
+    (await findStudentDocumentByNormalizedSchoolNumber(db, event.schoolId, normalizedSchoolNumber)) ??
+    (await findStudentDocumentByNumericSchoolNumber(db, event.schoolId, trimmedSchoolNumber));
 
   if (!studentDocument) {
+    logFirestoreParentLookup("student lookup rejected", {
+      eventId: event.id,
+      schoolId: String(event.schoolId ?? "").trim(),
+      studentSchoolNumber: trimmedSchoolNumber,
+      studentNormalizedSchoolNumber: normalizedSchoolNumber,
+      reason: "student-not-found",
+    });
     return null;
   }
 
   const studentData = studentDocument.data();
-  const classId = studentData.classId ?? "";
+  const studentSchoolId = String(studentData.schoolId ?? "").trim();
+  const classId = String(studentData.classId ?? "").trim();
+  const isActive = studentData.isActive ?? true;
 
-  if (!classId || !event.includedClasses.includes(classId)) {
+  logFirestoreParentLookup("student lookup resolved", {
+    studentId: studentDocument.id,
+    studentSchoolId,
+    studentClassId: classId,
+    isActive,
+  });
+
+  if (studentSchoolId !== String(event.schoolId ?? "").trim()) {
+    logFirestoreParentLookup("student lookup rejected", {
+      eventId: event.id,
+      studentId: studentDocument.id,
+      studentSchoolId,
+      eventSchoolId: String(event.schoolId ?? "").trim(),
+      reason: "school-id-mismatch",
+    });
+    return null;
+  }
+
+  if (!isActive) {
+    logFirestoreParentLookup("student lookup rejected", {
+      eventId: event.id,
+      studentId: studentDocument.id,
+      reason: "inactive-student",
+    });
+    return null;
+  }
+
+  if (!classId || !event.includedClasses.map((classItem) => String(classItem).trim()).includes(classId)) {
+    logFirestoreParentLookup("student lookup rejected", {
+      eventId: event.id,
+      studentId: studentDocument.id,
+      studentClassId: classId,
+      includedClasses: event.includedClasses,
+      reason: "class-not-in-event",
+    });
     return null;
   }
 
@@ -243,4 +311,136 @@ export async function findStudentForEvent(params: {
     studentData,
     classData,
   });
+}
+
+function normalizeSchoolNumber(schoolNumber: string) {
+  return schoolNumber.trim();
+}
+
+function logFirestoreParentLookup(
+  message: string,
+  details: Record<string, unknown>,
+) {
+  if (!isDevelopmentEnvironment()) {
+    return;
+  }
+
+  console.info(`[Firestore parent lookup] ${message}`, details);
+}
+
+function isDevelopmentEnvironment() {
+  return typeof import.meta !== "undefined" && import.meta.env?.DEV === true;
+}
+
+async function findStudentDocumentBySchoolNumber(
+  db: Firestore,
+  schoolId: string,
+  schoolNumber: string,
+) {
+  const trimmedSchoolNumber = String(schoolNumber ?? "").trim();
+  if (!trimmedSchoolNumber) {
+    return undefined;
+  }
+
+  logFirestoreParentLookup("student exact query", {
+    schoolId: String(schoolId ?? "").trim(),
+    schoolNumber: trimmedSchoolNumber,
+    queryField: "schoolNumber",
+    queryValueType: "string",
+    limit: 1,
+  });
+
+  const snapshot = await getDocs(
+    query(
+      collection(db, "students"),
+      where("schoolId", "==", schoolId),
+      where("schoolNumber", "==", trimmedSchoolNumber),
+      limit(1),
+    ),
+  );
+
+  logFirestoreParentLookup("student exact query result", {
+    schoolId: String(schoolId ?? "").trim(),
+    schoolNumber: trimmedSchoolNumber,
+    docsCount: snapshot.docs.length,
+  });
+
+  return snapshot.docs[0] as
+    | QueryDocumentSnapshot<FirestoreStudentDocument>
+    | undefined;
+}
+
+async function findStudentDocumentByNormalizedSchoolNumber(
+  db: Firestore,
+  schoolId: string,
+  normalizedSchoolNumber: string,
+) {
+  if (!normalizedSchoolNumber) {
+    return undefined;
+  }
+
+  logFirestoreParentLookup("student normalized query", {
+    schoolId: String(schoolId ?? "").trim(),
+    normalizedSchoolNumber,
+    queryField: "normalizedSchoolNumber",
+    queryValueType: "string",
+    limit: 1,
+  });
+
+  const snapshot = await getDocs(
+    query(
+      collection(db, "students"),
+      where("schoolId", "==", schoolId),
+      where("normalizedSchoolNumber", "==", normalizedSchoolNumber),
+      limit(1),
+    ),
+  );
+
+  logFirestoreParentLookup("student normalized query result", {
+    schoolId: String(schoolId ?? "").trim(),
+    normalizedSchoolNumber,
+    docsCount: snapshot.docs.length,
+  });
+
+  return snapshot.docs[0] as
+    | QueryDocumentSnapshot<FirestoreStudentDocument>
+    | undefined;
+}
+
+async function findStudentDocumentByNumericSchoolNumber(
+  db: Firestore,
+  schoolId: string,
+  schoolNumber: string,
+) {
+  const parsedSchoolNumber = Number(schoolNumber.trim());
+  if (!Number.isInteger(parsedSchoolNumber)) {
+    return undefined;
+  }
+
+  logFirestoreParentLookup("student numeric query", {
+    schoolId: String(schoolId ?? "").trim(),
+    schoolNumber: parsedSchoolNumber,
+    queryField: "schoolNumber",
+    queryValueType: "number",
+    limit: 1,
+  });
+
+  const snapshot = await getDocs(
+    query(
+      collection(db, "students"),
+      where("schoolId", "==", schoolId),
+      where("schoolNumber", "==", parsedSchoolNumber),
+      limit(1),
+    ),
+  );
+
+  logFirestoreParentLookup("student numeric query result", {
+    schoolId: String(schoolId ?? "").trim(),
+    schoolNumber: parsedSchoolNumber,
+    docsCount: snapshot.docs.length,
+  });
+
+  return snapshot.docs[0] as
+    | QueryDocumentSnapshot<FirestoreStudentDocument>
+    | undefined;
 }
