@@ -28,13 +28,17 @@ const navItems: AdminNavItem[] = [
 ] as const;
 
 export function AdminLayout() {
-  const { signOut, user, isSuperAdmin, isLegacyAdmin } = useAuth();
+  const { signOut, user, isSuperAdmin } = useAuth();
   const { t } = useT();
   const { currentSchoolId, hasHydrated, setCurrentSchoolId } =
     useAdminSchoolStore();
   const [schools, setSchools] = useState<School[]>([]);
   const [currentSchool, setCurrentSchool] = useState<School | null>(null);
-  const canSwitchSchool = isSuperAdmin || isLegacyAdmin;
+  const activeSchools = useMemo(
+    () => schools.filter((school) => school.isActive !== false),
+    [schools],
+  );
+  const canSwitchSchool = isSuperAdmin && activeSchools.length > 1;
 
   const schoolName = useMemo(
     () => currentSchool?.name ?? currentSchoolId,
@@ -42,15 +46,15 @@ export function AdminLayout() {
   );
   const selectableSchools = useMemo(() => {
     if (!currentSchool) {
-      return schools;
+      return activeSchools;
     }
 
-    if (schools.some((school) => school.id === currentSchool.id)) {
-      return schools;
+    if (activeSchools.some((school) => school.id === currentSchool.id)) {
+      return activeSchools;
     }
 
-    return [currentSchool, ...schools];
-  }, [currentSchool, schools]);
+    return [currentSchool, ...activeSchools];
+  }, [activeSchools, currentSchool]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -61,29 +65,26 @@ export function AdminLayout() {
 
     async function loadSchools() {
       try {
-        const nextCurrentSchool = await repositories.schoolRepository.getSchoolById(
-          currentSchoolId,
-        );
+        const nextSchools = await repositories.schoolRepository.listSchools();
         if (!isCurrent) {
           return;
         }
 
+        setSchools(nextSchools);
+
+        const activeSchoolList = nextSchools.filter(
+          (school) => school.isActive !== false,
+        );
+        const nextCurrentSchool =
+          nextSchools.find((school) => school.id === currentSchoolId) ??
+          activeSchoolList[0] ??
+          nextSchools[0] ??
+          null;
+
         setCurrentSchool(nextCurrentSchool);
 
-        if (canSwitchSchool) {
-          const nextSchools = await repositories.schoolRepository.listSchools();
-          if (!isCurrent) {
-            return;
-          }
-
-          setSchools(nextSchools);
-
-          if (
-            nextSchools.length > 0 &&
-            !nextSchools.some((school) => school.id === currentSchoolId)
-          ) {
-            setCurrentSchoolId(nextSchools[0].id);
-          }
+        if (nextCurrentSchool && nextCurrentSchool.id !== currentSchoolId) {
+          setCurrentSchoolId(nextCurrentSchool.id);
         }
       } catch (error) {
         if (!isCurrent) {
@@ -102,7 +103,7 @@ export function AdminLayout() {
     return () => {
       isCurrent = false;
     };
-  }, [canSwitchSchool, currentSchoolId, hasHydrated, setCurrentSchoolId]);
+  }, [currentSchoolId, hasHydrated, setCurrentSchoolId]);
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-7xl flex-col gap-6">

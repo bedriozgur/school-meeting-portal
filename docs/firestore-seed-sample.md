@@ -2,13 +2,15 @@
 
 Use this as a reference shape for manual test data. Document IDs are examples; keep cross-reference IDs aligned.
 
-## `schools/atatürk-ortaokulu`
+## `schools/ted-bursa`
 
 ```json
 {
-  "name": "Atatürk Ortaokulu",
-  "logoInitials": "OT",
-  "schoolId": "atatürk-ortaokulu"
+  "name": "TED Bursa Koleji",
+  "shortName": "TED Bursa",
+  "logoInitials": "TED",
+  "isActive": true,
+  "themePreset": "burgundy"
 }
 ```
 
@@ -16,7 +18,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 
 ```json
 {
-  "schoolId": "atatürk-ortaokulu",
+  "schoolId": "ted-bursa",
   "meetingCode": "BAHAR2026",
   "status": "active",
   "includedClasses": ["class-7-b", "class-6-a"],
@@ -29,7 +31,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 
 ```json
 {
-  "schoolId": "atatürk-ortaokulu",
+  "schoolId": "ted-bursa",
   "name": "7-B",
   "grade": "7",
   "classTeacherId": "ayse-demir"
@@ -40,7 +42,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 
 ```json
 {
-  "schoolId": "atatürk-ortaokulu",
+  "schoolId": "ted-bursa",
   "name": "6-A",
   "grade": "6",
   "classTeacherId": "mehmet-kaya"
@@ -51,7 +53,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 
 ```json
 {
-  "schoolId": "atatürk-ortaokulu",
+  "schoolId": "ted-bursa",
   "schoolNumber": "2458",
   "fullName": "Ada Yıldırım",
   "classId": "class-7-b"
@@ -62,7 +64,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 
 ```json
 {
-  "schoolId": "atatürk-ortaokulu",
+  "schoolId": "ted-bursa",
   "schoolNumber": "1934",
   "fullName": "Efe Aydın",
   "classId": "class-6-a"
@@ -73,7 +75,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 
 ```json
 {
-  "schoolId": "atatürk-ortaokulu",
+  "schoolId": "ted-bursa",
   "fullName": "Ayşe Demir",
   "defaultSubject": "Türkçe"
 }
@@ -83,7 +85,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 
 ```json
 {
-  "schoolId": "atatürk-ortaokulu",
+  "schoolId": "ted-bursa",
   "fullName": "Mehmet Kaya",
   "defaultSubject": "Matematik"
 }
@@ -93,7 +95,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 
 ```json
 {
-  "schoolId": "atatürk-ortaokulu",
+  "schoolId": "ted-bursa",
   "teacherId": "ayse-demir",
   "classId": "class-7-b",
   "subject": "",
@@ -106,7 +108,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 
 ```json
 {
-  "schoolId": "atatürk-ortaokulu",
+  "schoolId": "ted-bursa",
   "teacherId": "mehmet-kaya",
   "classId": "class-7-b",
   "subject": "",
@@ -119,7 +121,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 
 ```json
 {
-  "schoolId": "atatürk-ortaokulu",
+  "schoolId": "ted-bursa",
   "teacherId": "mehmet-kaya",
   "classId": "class-7-b",
   "subject": "",
@@ -133,7 +135,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 ```json
 {
   "eventId": "spring-2026-parent-meetings",
-  "schoolId": "atatürk-ortaokulu",
+  "schoolId": "ted-bursa",
   "teacherId": "ayse-demir",
   "building": "A",
   "floor": 1,
@@ -147,7 +149,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 ```json
 {
   "eventId": "spring-2026-parent-meetings",
-  "schoolId": "atatürk-ortaokulu",
+  "schoolId": "ted-bursa",
   "teacherId": "mehmet-kaya",
   "building": "A",
   "floor": 1,

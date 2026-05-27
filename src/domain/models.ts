@@ -3,7 +3,10 @@ export type Availability = "available" | "busy" | "limited";
 export type School = {
   id: string;
   name: string;
+  shortName?: string;
   logoInitials: string;
+  isActive?: boolean;
+  themePreset?: string;
 };
 
 export type SchoolUserRole = "schoolAdmin" | "staff";

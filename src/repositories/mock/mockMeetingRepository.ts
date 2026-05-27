@@ -165,7 +165,7 @@ async function buildMockEvent(input: EventFormInput) {
 
   return {
     id: `event-${code.toLowerCase()}`,
-    schoolId: mockClasses[0]?.schoolId ?? "atatürk-ortaokulu",
+    schoolId: mockClasses[0]?.schoolId ?? DEFAULT_SCHOOL_ID,
     code,
     status: "draft" as const,
     includedClasses: input.includedClasses,

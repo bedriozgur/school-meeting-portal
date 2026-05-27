@@ -23,7 +23,10 @@ export function mapSchool(id: string, data: FirestoreSchoolDocument): School {
   return {
     id,
     name: data.name ?? "",
+    shortName: data.shortName ?? "",
     logoInitials: data.logoInitials ?? "",
+    isActive: data.isActive ?? true,
+    themePreset: data.themePreset ?? "",
   };
 }
 

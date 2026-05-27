@@ -1,6 +1,9 @@
 export type FirestoreSchoolDocument = {
   name?: string;
+  shortName?: string;
   logoInitials?: string;
+  isActive?: boolean;
+  themePreset?: string;
 };
 
 export type FirestoreSchoolUserDocument = {

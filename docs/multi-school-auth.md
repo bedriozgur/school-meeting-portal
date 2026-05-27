@@ -30,7 +30,7 @@ The app currently supports three authorization layers:
 The admin shell now has a local `currentSchoolId` selection state.
 
 - It defaults to the current pilot school so the existing single-school flow keeps working.
-- Super admins and legacy admins can switch the selected school in the admin header.
+- Super admins can switch the selected school in the admin header when more than one active school exists.
 - The selected school is used by the dashboard summary, pilot checklist, and school-scoped list pages where practical.
 - The selector is a UI foundation only. It does not replace Firestore authorization.
 

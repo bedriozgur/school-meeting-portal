@@ -13,18 +13,14 @@ import { DEFAULT_SCHOOL_ID } from "../../config/school";
 
 export const mockSchool: School = {
   id: DEFAULT_SCHOOL_ID,
-  name: "Atatürk Ortaokulu",
-  logoInitials: "OT",
+  name: "TED Bursa Koleji",
+  shortName: "TED Bursa",
+  logoInitials: "TED",
+  isActive: true,
+  themePreset: "burgundy",
 };
 
-export const mockSchools: School[] = [
-  mockSchool,
-  {
-    id: "yildiz-ortaokulu",
-    name: "Yıldız Ortaokulu",
-    logoInitials: "YO",
-  },
-];
+export const mockSchools: School[] = [mockSchool];
 
 export const mockClasses: SchoolClass[] = [
   {

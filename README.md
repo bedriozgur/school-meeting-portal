@@ -86,6 +86,14 @@ Firebase client setup lives in `src/lib/firebase`:
 - Auth export
 - missing environment variable handling
 
+## Pilot School
+
+The current primary pilot school is **TED Bursa Koleji**.
+
+- Default school ID: `ted-bursa`
+- Multi-school authorization remains available in the codebase for later rollout
+- The school selector is hidden for the pilot unless a super admin has more than one active school to manage
+
 ## Admin Authentication
 
 The admin foundation uses Firebase Auth with Google sign-in and email/password sign-in. Authentication is separate from authorization. Access can come from a temporary email allowlist, a legacy `admin: true` claim, a platform-wide `superAdmin: true` claim, or school role records in Firestore. It does not include full multi-school CRUD yet.
@@ -103,7 +111,7 @@ Signed-in admin users can access `/admin` when either:
 - their Firebase ID token has custom claim `superAdmin: true`
 - they have a `schoolUsers` role record for the selected school
 
-The admin header shows the current school. Super admins and legacy admins can switch the selected school from the admin shell; the dashboard, pilot checklist, and list views use that selection where practical. The default-school pilot behavior remains the fallback when no selection is present.
+The admin header shows the current school. Super admins can switch the selected school from the admin shell when more than one active school exists; the dashboard, pilot checklist, and list views use that selection where practical. The default-school pilot behavior remains the fallback when no selection is present.
 
 `VITE_ADMIN_EMAILS` is UI-only and is not sufficient for Firestore writes.
 Firestore writes depend on authorization:
@@ -151,6 +159,17 @@ Notes:
 - The user must already exist in Firebase Authentication.
 - The script sets only `{ admin: true }`.
 - Do not commit service account files or paste them into source control.
+
+### One-time primary school migration
+
+If you need to move the pilot data into the current TED Bursa primary school, use the migration script manually:
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json \
+node scripts/migrate-primary-school-to-ted-bursa.cjs
+```
+
+The script updates the `schoolId` fields across the managed collections, rewrites `schoolUsers` document IDs, updates `schools/ted-bursa`, and deletes `schools/atatürk-ortaokulu` after the migration completes.
 
 ### Email/Password admin login
 
