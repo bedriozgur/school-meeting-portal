@@ -227,6 +227,8 @@ export async function getTeacherByIdOrNull(
 export async function getTeachingAssignmentsForClass(
   db: Firestore,
   classId: string,
+  teacherLookup: (teacherId: string) => Promise<Teacher | null> = (teacherId) =>
+    getTeacherByIdOrNull(db, teacherId),
 ): Promise<TeachingAssignment[]> {
   return runFirestoreParentLookupStep("teachingAssignments lookup", { classId }, async () => {
     try {
@@ -253,7 +255,7 @@ export async function getTeachingAssignmentsForClass(
           const assignmentData =
             assignmentDocument.data() as FirestoreTeachingAssignmentDocument;
           const teacher = assignmentData.teacherId
-            ? await getTeacherByIdOrNull(db, assignmentData.teacherId)
+            ? await teacherLookup(assignmentData.teacherId)
             : null;
 
           return mapTeachingAssignment({
@@ -277,6 +279,8 @@ export async function getTeachingAssignmentsForClass(
 export async function getTeachingAssignmentsForTeacher(
   db: Firestore,
   teacherId: string,
+  teacherLookup: (teacherId: string) => Promise<Teacher | null> = (id) =>
+    getTeacherByIdOrNull(db, id),
 ): Promise<TeachingAssignment[]> {
   return runFirestoreParentLookupStep("teachingAssignments lookup", { teacherId }, async () => {
     try {
@@ -303,7 +307,7 @@ export async function getTeachingAssignmentsForTeacher(
           const assignmentData =
             assignmentDocument.data() as FirestoreTeachingAssignmentDocument;
           const teacher = assignmentData.teacherId
-            ? await getTeacherByIdOrNull(db, assignmentData.teacherId)
+            ? await teacherLookup(assignmentData.teacherId)
             : null;
 
           return mapTeachingAssignment({
@@ -328,12 +332,21 @@ export async function findStudentForEvent(params: {
   db: Firestore;
   meetingCode: string;
   schoolNumber: string;
+  event?: MeetingEvent | null;
 }): Promise<Student | null> {
-  const { db, meetingCode, schoolNumber } = params;
-  const event = await findActiveOrDraftEventByCode(db, meetingCode);
+  const { db, meetingCode, schoolNumber, event: resolvedEvent } = params;
+  const event = resolvedEvent ?? (await findActiveOrDraftEventByCode(db, meetingCode));
 
   if (!event) {
     return null;
+  }
+
+  if (resolvedEvent) {
+    logFirestoreParentLookup("event reused for student lookup", {
+      eventId: event.id,
+      schoolId: String(event.schoolId ?? "").trim(),
+      includedClasses: event.includedClasses,
+    });
   }
 
   const trimmedSchoolNumber = String(schoolNumber ?? "").trim();
@@ -452,16 +465,8 @@ async function runFirestoreParentLookupStep<T>(
   details: Record<string, unknown>,
   fn: () => Promise<T>,
 ): Promise<T> {
-  if (isDevelopmentEnvironment()) {
-    console.info(`[Firestore parent lookup] ${step} started`, stringifySafe(details));
-  }
-
   try {
-    const result = await fn();
-    if (isDevelopmentEnvironment()) {
-      console.info(`[Firestore parent lookup] ${step} resolved`, stringifySafe(details));
-    }
-    return result;
+    return await fn();
   } catch (error) {
     logFirestoreParentLookupError(step, error, details);
     throw error;

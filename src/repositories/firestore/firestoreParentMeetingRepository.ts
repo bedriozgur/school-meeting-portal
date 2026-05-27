@@ -2,12 +2,23 @@ import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import type { ParentMeetingRepository } from "../interfaces";
 import type { TeacherAssignment } from "../../domain/models";
 import { sortTeacherAssignments } from "../../utils/teachers";
-import { requireFirestore, findActiveOrDraftEventByCode, findStudentForEvent, getSchoolById, getClassById, getTeacherByIdOrNull, getTeachingAssignmentsForClass } from "./firestoreLookups";
+import {
+  findActiveOrDraftEventByCode,
+  findStudentForEvent,
+  getClassById,
+  getSchoolById,
+  getTeacherByIdOrNull,
+  getTeachingAssignmentsForClass,
+  requireFirestore,
+} from "./firestoreLookups";
 import type { FirestoreEventTeacherSetupDocument } from "./firestoreTypes";
+import type { FirestoreClassDocument } from "./firestoreTypes";
+import type { School, Teacher } from "../../domain/models";
 
 export const firestoreParentMeetingRepository: ParentMeetingRepository = {
   async getParentMeetingView({ meetingCode, schoolNumber }) {
     const db = requireFirestore();
+    const cache = createParentLookupCache(db);
     const lookupContext = {
       meetingCode: meetingCode.trim().toUpperCase(),
       schoolNumber: String(schoolNumber ?? "").trim(),
@@ -41,6 +52,7 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
         db,
         meetingCode,
         schoolNumber,
+        event: meetingEvent,
       });
 
       if (!student) {
@@ -67,50 +79,50 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
         eventId: meetingEvent.id,
         schoolId: meetingEvent.schoolId,
       });
-      const school = await getSchoolById(db, meetingEvent.schoolId);
-      logParentMeetingLookup("school lookup resolved", {
-        ...lookupContext,
-        eventId: meetingEvent.id,
-        schoolId: school.id,
-      });
-
       logParentMeetingLookup("class lookup started", {
         ...lookupContext,
         eventId: meetingEvent.id,
         classId: student.classId,
       });
-      const classData = await getClassById(db, student.classId);
+      logParentMeetingLookup("teachingAssignments query started", {
+        ...lookupContext,
+        eventId: meetingEvent.id,
+        classId: student.classId,
+      });
+      logParentMeetingLookup("eventTeacherSetups query started", {
+        ...lookupContext,
+        eventId: meetingEvent.id,
+      });
+      const [school, classData, teachingAssignments, setupSnapshot] = await Promise.all([
+        cache.getSchool(meetingEvent.schoolId),
+        cache.getClass(student.classId),
+        getTeachingAssignmentsForClass(db, student.classId, cache.getTeacher),
+        getDocs(
+          query(
+            collection(db, "eventTeacherSetups"),
+            where("eventId", "==", meetingEvent.id),
+            limit(100),
+          ),
+        ),
+      ]);
+
+      logParentMeetingLookup("school lookup resolved", {
+        ...lookupContext,
+        eventId: meetingEvent.id,
+        schoolId: school.id,
+      });
       logParentMeetingLookup("class lookup resolved", {
         ...lookupContext,
         eventId: meetingEvent.id,
         classId: student.classId,
         classTeacherId: classData.classTeacherId ?? null,
       });
-
-      logParentMeetingLookup("teachingAssignments query started", {
-        ...lookupContext,
-        eventId: meetingEvent.id,
-        classId: student.classId,
-      });
-      const teachingAssignments = await getTeachingAssignmentsForClass(db, student.classId);
       logParentMeetingLookup("teachingAssignments query resolved", {
         ...lookupContext,
         eventId: meetingEvent.id,
         classId: student.classId,
         docsCount: teachingAssignments.length,
       });
-
-      logParentMeetingLookup("eventTeacherSetups query started", {
-        ...lookupContext,
-        eventId: meetingEvent.id,
-      });
-      const setupSnapshot = await getDocs(
-        query(
-          collection(db, "eventTeacherSetups"),
-          where("eventId", "==", meetingEvent.id),
-          limit(100),
-        ),
-      );
       logParentMeetingLookup("eventTeacherSetups query resolved", {
         ...lookupContext,
         eventId: meetingEvent.id,
@@ -129,14 +141,30 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
         eventId: meetingEvent.id,
         teachingAssignmentCount: teachingAssignments.filter((row) => row.isActive).length,
       });
+      const activeAssignments = teachingAssignments.filter((row) => row.isActive);
+      const teacherIds = Array.from(
+        new Set([
+          ...activeAssignments.map((assignment) => assignment.teacherId).filter(Boolean),
+          ...(classData.classTeacherId ? [classData.classTeacherId] : []),
+        ]),
+      );
+      const teacherEntries = await Promise.all(
+        teacherIds.map(async (teacherId) => [
+          teacherId,
+          await cache.getTeacher(teacherId),
+        ] as const),
+      );
+      const teacherById = new Map(
+        teacherEntries.filter((entry): entry is readonly [string, Teacher] => Boolean(entry[1])),
+      );
       const classTeacher = classData.classTeacherId
-        ? await getTeacherByIdOrNull(db, classData.classTeacherId)
+        ? teacherById.get(classData.classTeacherId) ?? null
         : null;
       const teacherAssignments: TeacherAssignment[] = [];
       let resolvedTeacherCount = 0;
-      for (const assignment of teachingAssignments.filter((row) => row.isActive)) {
+      for (const assignment of activeAssignments) {
         const teacherId = assignment.teacherId;
-        const teacher = await getTeacherByIdOrNull(db, teacherId);
+        const teacher = teacherById.get(teacherId);
         if (!teacher) {
           continue;
         }
@@ -159,6 +187,7 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
       logParentMeetingLookup("teacher lookup resolved", {
         ...lookupContext,
         eventId: meetingEvent.id,
+        requestedTeacherCount: teacherIds.length,
         resolvedTeacherCount,
         availableSetupCount: setupSnapshot.docs.length,
       });
@@ -185,6 +214,48 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
     }
   },
 };
+
+function createParentLookupCache(db: ReturnType<typeof requireFirestore>) {
+  const schoolCache = new Map<string, Promise<School>>();
+  const classCache = new Map<string, Promise<FirestoreClassDocument>>();
+  const teacherCache = new Map<string, Promise<Teacher | null>>();
+
+  return {
+    getSchool(schoolId: string) {
+      const cacheKey = schoolId.trim();
+      const cached = schoolCache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      const promise = getSchoolById(db, cacheKey);
+      schoolCache.set(cacheKey, promise);
+      return promise;
+    },
+    getClass(classId: string) {
+      const cacheKey = classId.trim();
+      const cached = classCache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      const promise = getClassById(db, cacheKey);
+      classCache.set(cacheKey, promise);
+      return promise;
+    },
+    getTeacher(teacherId: string) {
+      const cacheKey = teacherId.trim();
+      const cached = teacherCache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      const promise = getTeacherByIdOrNull(db, cacheKey);
+      teacherCache.set(cacheKey, promise);
+      return promise;
+    },
+  };
+}
 
 function logParentMeetingLookup(step: string, details: Record<string, unknown>) {
   if (!isDevelopmentEnvironment()) {
