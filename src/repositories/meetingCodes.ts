@@ -1,17 +1,29 @@
-const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const letters = "ABCDEFGHJKLMNPRSTUVWXYZ";
 const defaultMaxAttempts = 25;
 
 export function generateMeetingCode(): string {
   const prefix = Array.from({ length: 3 }, () =>
     letters.charAt(Math.floor(Math.random() * letters.length)),
   ).join("");
-  const suffix = String(Math.floor(Math.random() * 1000)).padStart(3, "0");
+
+  const suffix = Array.from({ length: 3 }, () =>
+    letters.charAt(Math.floor(Math.random() * letters.length)),
+  ).join("");
 
   return `${prefix}-${suffix}`;
 }
 
 export function normalizeMeetingCode(meetingCode: string): string {
-  return meetingCode.trim().toUpperCase();
+  const cleaned = meetingCode
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+
+  if (/^[A-Z]{6}$/.test(cleaned)) {
+    return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+  }
+
+  return cleaned;
 }
 
 export async function generateUniqueMeetingCode(

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Language } from "../i18n/i18n";
+import { normalizeMeetingCode } from "../repositories/meetingCodes";
 
 type TeacherState = {
   visited: boolean;
@@ -59,7 +60,7 @@ export const useSessionStore = create<SessionStore>()(
       setMeetingCode: (meetingCode) =>
         set((state) => ({
           ...ensureCurrentDay(state),
-          meetingCode: meetingCode.trim().toUpperCase(),
+          meetingCode: normalizeMeetingCode(meetingCode),
           expiresOn: todayKey(),
         })),
       setSchoolNumber: (schoolNumber) =>

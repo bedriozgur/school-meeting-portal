@@ -277,7 +277,7 @@ Future Firebase direction:
 
 Event create/edit forms support event name, date, start/end time, and included classes. Meeting code is generated for new events and status remains managed by lifecycle actions.
 
-Meeting code generation uses the `ABC-123` format. New and duplicated events ask the active `MeetingRepository` whether a generated code is available and retry with a safe limit before failing. Existing event edits preserve the current meeting code.
+Meeting code generation uses the `ABC-DEF` format. New and duplicated events ask the active `MeetingRepository` whether a generated code is available and retry with a safe limit before failing. Existing event edits preserve the current meeting code. Legacy numeric codes that already exist in storage still resolve for backward compatibility.
 
 Event duplication is available from the event list and event detail page. The duplicate flow creates a new draft event with a new unique meeting code, copies included classes, and pre-fills start/end time from the source event. The admin must confirm the new event name and date before saving. In mock mode, duplication is simulated in memory. In Firestore mode, duplication creates a new `events` document and leaves teacher setup data to be entered separately. Parent notes are not duplicated because they are stored only in browser storage.
 

@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SchoolHeader } from "../components/SchoolHeader";
 import { useT } from "../hooks/useT";
+import { normalizeMeetingCode } from "../repositories/meetingCodes";
 import { useSessionStore } from "../store/sessionStore";
 import { useSchoolBranding } from "../theme/useSchoolBranding";
 
@@ -15,7 +16,7 @@ export function LandingPage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const normalizedCode = meetingCode.trim().toUpperCase();
+    const normalizedCode = normalizeMeetingCode(meetingCode);
 
     if (!normalizedCode) {
       return;

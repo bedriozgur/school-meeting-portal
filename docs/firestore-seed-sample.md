@@ -19,7 +19,7 @@ Use this as a reference shape for manual test data. Document IDs are examples; k
 ```json
 {
   "schoolId": "ted-bursa",
-  "meetingCode": "BAHAR2026",
+  "meetingCode": "TED-BRS",
   "status": "active",
   "includedClasses": ["class-7-b", "class-6-a"],
   "title": "Bahar Dönemi Veli Görüşmeleri",
