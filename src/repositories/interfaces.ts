@@ -46,6 +46,7 @@ export type MeetingRepository = {
   archiveEvent: (eventId: string) => Promise<MeetingEvent>;
   markEventOld: (eventId: string) => Promise<MeetingEvent>;
   restoreEventToDraft: (eventId: string) => Promise<MeetingEvent>;
+  deleteDraftEvent: (eventId: string) => Promise<void>;
   createEvent: (input: EventFormInput) => Promise<MeetingEvent>;
   updateEvent: (eventId: string, input: EventFormInput) => Promise<MeetingEvent>;
   duplicateEvent: (

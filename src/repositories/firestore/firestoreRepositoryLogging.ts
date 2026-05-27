@@ -12,6 +12,7 @@ export async function logFirestoreCollectionFailure(params: {
   collectionName: string;
   operation: string;
   schoolId?: string;
+  context?: Record<string, unknown>;
   error: unknown;
 }) {
   if (import.meta.env.DEV !== true) {
@@ -45,6 +46,7 @@ export async function logFirestoreCollectionFailure(params: {
     collectionName: params.collectionName,
     operation: params.operation,
     schoolId: params.schoolId ?? null,
+    context: params.context ?? null,
     errorMessage: getErrorMessage(params.error),
     errorCode: getFirebaseErrorCode(params.error),
     authState,

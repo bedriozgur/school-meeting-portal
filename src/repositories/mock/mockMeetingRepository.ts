@@ -92,6 +92,25 @@ export const mockMeetingRepository: MeetingRepository = {
   async restoreEventToDraft(eventId) {
     return updateMockEventStatus(eventId, "restoreDraft");
   },
+  async deleteDraftEvent(eventId) {
+    const eventIndex = mockMeetingEvents.findIndex((meeting) => meeting.id === eventId);
+
+    if (eventIndex === -1) {
+      throw new Error(`Event not found: ${eventId}`);
+    }
+
+    const event = mockMeetingEvents[eventIndex];
+    if (event.status !== "draft") {
+      throw new Error("Only draft events can be deleted.");
+    }
+
+    mockMeetingEvents.splice(eventIndex, 1);
+    for (let index = mockEventTeacherSetups.length - 1; index >= 0; index -= 1) {
+      if (mockEventTeacherSetups[index].eventId === eventId) {
+        mockEventTeacherSetups.splice(index, 1);
+      }
+    }
+  },
   async createEvent(input) {
     const event = await buildMockEvent(input);
     mockMeetingEvents.unshift(event);

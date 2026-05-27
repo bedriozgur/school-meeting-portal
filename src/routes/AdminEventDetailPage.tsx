@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { EventLifecycleActions } from "../components/EventLifecycleActions";
 import { EventReadinessPanel } from "../components/EventReadinessPanel";
 import type {
@@ -12,6 +12,7 @@ import type { TranslationKey } from "../i18n/i18n";
 import { repositories } from "../repositories";
 
 type DetailStatus = "loading" | "success" | "error";
+type DeleteStatus = "idle" | "loading" | "error";
 
 const statusKeys: Record<MeetingEvent["status"], TranslationKey> = {
   draft: "admin.eventStatus.draft",
@@ -36,7 +37,9 @@ const availabilityKeys = {
 export function AdminEventDetailPage() {
   const { eventId = "" } = useParams();
   const { t } = useT();
+  const navigate = useNavigate();
   const [status, setStatus] = useState<DetailStatus>("loading");
+  const [deleteStatus, setDeleteStatus] = useState<DeleteStatus>("idle");
   const [event, setEvent] = useState<MeetingEvent | null>(null);
   const [readiness, setReadiness] = useState<EventReadiness | null>(null);
   const [assignments, setAssignments] = useState<EventTeacherSetupOverview[]>([]);
@@ -48,6 +51,28 @@ export function AdminEventDetailPage() {
 
     return `${window.location.origin}${parentTarget}`;
   }, [event, parentTarget]);
+
+  async function handleDelete() {
+    if (!event || event.status !== "draft") {
+      return;
+    }
+
+    if (!window.confirm(t("admin.eventDeleteConfirm"))) {
+      return;
+    }
+
+    setDeleteStatus("loading");
+
+    try {
+      await repositories.meetingRepository.deleteDraftEvent(event.id);
+      navigate("/admin/events", {
+        replace: true,
+        state: { messageKey: "admin.eventDeleteSuccess" },
+      });
+    } catch {
+      setDeleteStatus("error");
+    }
+  }
 
   useEffect(() => {
     let isCurrent = true;
@@ -144,7 +169,24 @@ export function AdminEventDetailPage() {
           <Link className="btn-secondary w-full sm:w-auto" to={`/admin/events/${event.id}/assignments`}>
             {t("admin.eventAssignments")}
           </Link>
+          {event.status === "draft" ? (
+            <button
+              className="btn-secondary border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+              disabled={deleteStatus === "loading"}
+              onClick={handleDelete}
+              type="button"
+            >
+              {deleteStatus === "loading"
+                ? t("admin.eventDeleteRunning")
+                : t("admin.eventDelete")}
+            </button>
+          ) : null}
         </div>
+        {deleteStatus === "error" ? (
+          <p className="status-danger mt-4 rounded-2xl px-4 py-3 text-sm font-bold">
+            {t("admin.eventDeleteError")}
+          </p>
+        ) : null}
       </section>
 
       <section className="surface space-y-4 p-6 sm:p-8">

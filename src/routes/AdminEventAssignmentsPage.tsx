@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { EventReadinessPanel } from "../components/EventReadinessPanel";
+import { DEFAULT_SCHOOL_ID } from "../config/school";
 import type {
   Availability,
   EventReadiness,
@@ -13,6 +14,8 @@ import type {
 import { useT } from "../hooks/useT";
 import type { TranslationKey } from "../i18n/i18n";
 import { repositories } from "../repositories";
+import { useAdminSchoolStore } from "../store/adminSchoolStore";
+import { logFirestoreCollectionFailure } from "../repositories/firestore/firestoreRepositoryLogging";
 
 type LoadStatus = "loading" | "success" | "error";
 type SaveStatus = "idle" | "saving" | "success" | "error";
@@ -51,10 +54,14 @@ const availabilityKeys: Record<Availability, TranslationKey> = {
 export function AdminEventAssignmentsPage() {
   const { eventId = "" } = useParams();
   const { t } = useT();
+  const { currentSchoolId, hasHydrated } = useAdminSchoolStore();
   const [loadStatus, setLoadStatus] = useState<LoadStatus>("loading");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [event, setEvent] = useState<MeetingEvent | null>(null);
   const [readiness, setReadiness] = useState<EventReadiness | null>(null);
+  const [readinessWarning, setReadinessWarning] = useState<TranslationKey | null>(
+    null,
+  );
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [teachingAssignments, setTeachingAssignments] = useState<TeachingAssignment[]>([]);
@@ -112,41 +119,78 @@ export function AdminEventAssignmentsPage() {
 
   useEffect(() => {
     let isCurrent = true;
+    let resolvedSchoolId = currentSchoolId.trim() || DEFAULT_SCHOOL_ID;
+
+    if (!hasHydrated) {
+      return undefined;
+    }
 
     setLoadStatus("loading");
-    const teachingAssignmentsPromise = (async () => {
-      const nextEvent = await repositories.meetingRepository.getEventById(eventId);
-      if (!nextEvent) {
-        return [] as TeachingAssignment[];
-      }
+    setReadinessWarning(null);
 
-      const rows = await Promise.all(
-        nextEvent.includedClasses.map((classId) =>
-          repositories.teachingAssignmentRepository.listTeachingAssignmentsForClass(
-            classId,
-          ),
-        ),
-      );
+    (async () => {
+      try {
+        const nextEvent = await repositories.meetingRepository.getEventById(eventId);
 
-      return rows.flat().filter((assignment) => assignment.isActive);
-    })();
+        if (!nextEvent) {
+          await logFirestoreCollectionFailure({
+            collectionName: "events",
+            operation: "getEventById",
+            schoolId: resolvedSchoolId,
+            context: {
+              eventId,
+              currentSchoolId,
+              selectedSchoolId: currentSchoolId,
+            },
+            error: new Error(`Event not found: ${eventId}`),
+          });
+          if (isCurrent) {
+            setLoadStatus("error");
+          }
+          return;
+        }
 
-    Promise.all([
-      repositories.meetingRepository.getEventById(eventId),
-      repositories.classRepository.listClasses(),
-      repositories.teacherRepository.listTeachers(),
-      repositories.meetingRepository.getEventAssignments(eventId),
-      repositories.meetingRepository.validateEventReadiness(eventId),
-      teachingAssignmentsPromise,
-    ])
-      .then(([
-        nextEvent,
-        nextClasses,
-        nextTeachers,
-        nextSetupRows,
-        nextReadiness,
-        nextTeachingAssignments,
-      ]) => {
+        resolvedSchoolId =
+          nextEvent.schoolId?.trim() || currentSchoolId.trim() || DEFAULT_SCHOOL_ID;
+
+        const [nextClasses, nextTeachers, nextSetupRows, nextTeachingAssignments] =
+          await Promise.all([
+            repositories.classRepository.listClasses(resolvedSchoolId),
+            repositories.teacherRepository.listTeachers(resolvedSchoolId),
+            repositories.meetingRepository.getEventAssignments(eventId),
+            (async () => {
+              const rows = await Promise.all(
+                nextEvent.includedClasses.map((classId) =>
+                  repositories.teachingAssignmentRepository.listTeachingAssignmentsForClass(
+                    classId,
+                    resolvedSchoolId,
+                  ),
+                ),
+              );
+
+              return rows.flat().filter((assignment) => assignment.isActive);
+            })(),
+          ]);
+
+        let nextReadiness: EventReadiness | null = null;
+
+        try {
+          nextReadiness = await repositories.meetingRepository.validateEventReadiness(eventId);
+        } catch (error) {
+          setReadinessWarning("admin.assignmentsReadinessLoadWarning");
+          await logFirestoreCollectionFailure({
+            collectionName: "eventTeacherSetups",
+            operation: "validateEventReadiness",
+            schoolId: resolvedSchoolId,
+            context: {
+              eventId,
+              currentSchoolId,
+              selectedSchoolId: currentSchoolId,
+            },
+            error,
+          });
+        }
+
         if (!isCurrent) {
           return;
         }
@@ -157,18 +201,30 @@ export function AdminEventAssignmentsPage() {
         setSetupRows(nextSetupRows);
         setReadiness(nextReadiness);
         setTeachingAssignments(nextTeachingAssignments);
-        setLoadStatus(nextEvent ? "success" : "error");
-      })
-      .catch(() => {
+        setLoadStatus("success");
+      } catch (error) {
+        await logFirestoreCollectionFailure({
+          collectionName: "eventTeacherSetups",
+          operation: "loadEventAssignmentsPage",
+          schoolId: resolvedSchoolId,
+          context: {
+            eventId,
+            currentSchoolId,
+            selectedSchoolId: currentSchoolId,
+          },
+          error,
+        });
+
         if (isCurrent) {
           setLoadStatus("error");
         }
-      });
+      }
+    })();
 
     return () => {
       isCurrent = false;
     };
-  }, [eventId]);
+  }, [currentSchoolId, eventId, hasHydrated]);
 
   async function handleSubmit(submitEvent: FormEvent<HTMLFormElement>) {
     submitEvent.preventDefault();
@@ -336,7 +392,15 @@ export function AdminEventAssignmentsPage() {
         ) : null}
       </section>
 
-      <EventReadinessPanel readiness={readiness} />
+      {readiness ? (
+        <EventReadinessPanel readiness={readiness} />
+      ) : readinessWarning ? (
+        <section className="surface p-6 sm:p-8">
+          <p className="status-warning rounded-2xl px-4 py-3 text-sm font-bold">
+            {t(readinessWarning)}
+          </p>
+        </section>
+      ) : null}
 
       <section className="surface p-6 sm:p-8">
         <div className="mb-4">

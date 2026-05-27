@@ -6,9 +6,9 @@ import {
   getDoc,
   getDocs,
   limit,
-  orderBy,
   query,
   serverTimestamp,
+  writeBatch,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -40,7 +40,6 @@ import type {
   FirestoreClassDocument,
   FirestoreEventDocument,
   FirestoreEventTeacherSetupDocument,
-  FirestoreTeacherDocument,
 } from "./firestoreTypes";
 import {
   generateUniqueMeetingCode,
@@ -141,181 +140,225 @@ export const firestoreMeetingRepository: MeetingRepository = {
   },
   async getEventAssignments(eventId) {
     const db = requireFirestore();
-    const event = await firestoreMeetingRepository.getEventById(eventId);
+    let eventSchoolId = DEFAULT_SCHOOL_ID;
+    try {
+      const event = await firestoreMeetingRepository.getEventById(eventId);
 
-    if (!event) {
-      return [];
-    }
-
-    const teachingAssignments = await Promise.all(
-      event.includedClasses.map((classId) =>
-        getTeachingAssignmentsForClass(db, classId, undefined, event.schoolId),
-      ),
-    );
-    const teacherSubjectById = new Map<string, string>();
-
-    teachingAssignments.flat().forEach((assignment) => {
-      if (!assignment.isActive) {
-        return;
+      if (!event) {
+        return [];
       }
-      if (!teacherSubjectById.has(assignment.teacherId)) {
-        teacherSubjectById.set(assignment.teacherId, assignment.subject);
-      }
-    });
 
-    const setupsSnapshot = await getDocs(
-      query(
-        collection(db, "eventTeacherSetups"),
-        where("schoolId", "==", event.schoolId),
-        where("eventId", "==", eventId),
-        limit(100),
-      ),
-    );
-    const setupByTeacherId = new Map(
-      setupsSnapshot.docs.map((setupDocument) => [
-        (setupDocument.data() as FirestoreEventTeacherSetupDocument).teacherId ??
-          "",
-        {
-          id: setupDocument.id,
-          data: setupDocument.data() as FirestoreEventTeacherSetupDocument,
-        },
-      ]),
-    );
+      eventSchoolId = event.schoolId?.trim() || DEFAULT_SCHOOL_ID;
 
-    const rows: Array<EventTeacherSetupOverview | null> = await Promise.all(
-      [...teacherSubjectById.entries()].map(async ([teacherId, subject]) => {
-        const teacher = await getTeacherByIdOrNull(db, teacherId);
+      const teachingAssignments = await Promise.all(
+        event.includedClasses.map((classId) =>
+          getTeachingAssignmentsForClass(db, classId, undefined, eventSchoolId),
+        ),
+      );
+      const teacherSubjectById = new Map<string, string>();
 
-        if (!teacher) {
-          return null;
+      teachingAssignments.flat().forEach((assignment) => {
+        if (!assignment.isActive) {
+          return;
         }
-
-        const setup = setupByTeacherId.get(teacherId);
-        const setupData: FirestoreEventTeacherSetupDocument = setup?.data ?? {
-          eventId,
-          schoolId: event.schoolId,
-          teacherId,
-          building: "",
-          floor: 0,
-          classroom: "",
-          isAvailable: false,
-        };
-
-        return {
-          id: setup?.id ?? `missing-${eventId}-${teacherId}`,
-          teacher,
-          subject,
-          building: setupData.building ?? "",
-          floor: setupData.floor ?? 0,
-          classroom: setupData.classroom ?? "",
-          availability: setupData.isAvailable ? ("available" as const) : ("busy" as const),
-          locationMissing: !setup,
-        } satisfies EventTeacherSetupOverview;
-      }),
-    );
-
-    return rows
-      .filter((row): row is EventTeacherSetupOverview => row !== null)
-      .sort((left, right) => {
-        const building = left.building.localeCompare(right.building, "tr");
-
-        if (building !== 0) {
-          return building;
+        if (!teacherSubjectById.has(assignment.teacherId)) {
+          teacherSubjectById.set(assignment.teacherId, assignment.subject);
         }
-
-        if (left.floor !== right.floor) {
-          return left.floor - right.floor;
-        }
-
-        return left.classroom.localeCompare(right.classroom, "tr", {
-          numeric: true,
-        });
       });
+
+      const setupsSnapshot = await getDocs(
+        query(
+          collection(db, "eventTeacherSetups"),
+          where("schoolId", "==", event.schoolId),
+          where("eventId", "==", eventId),
+          limit(100),
+        ),
+      );
+      const setupByTeacherId = new Map(
+        setupsSnapshot.docs.map((setupDocument) => [
+          (setupDocument.data() as FirestoreEventTeacherSetupDocument).teacherId ??
+            "",
+          {
+            id: setupDocument.id,
+            data: setupDocument.data() as FirestoreEventTeacherSetupDocument,
+          },
+        ]),
+      );
+
+      const rows: Array<EventTeacherSetupOverview | null> = await Promise.all(
+        [...teacherSubjectById.entries()].map(async ([teacherId, subject]) => {
+          const teacher = await getTeacherByIdOrNull(db, teacherId);
+
+          if (!teacher) {
+            return null;
+          }
+
+          const setup = setupByTeacherId.get(teacherId);
+          const setupData: FirestoreEventTeacherSetupDocument = setup?.data ?? {
+            eventId,
+            schoolId: event.schoolId,
+            teacherId,
+            building: "",
+            floor: 0,
+            classroom: "",
+            isAvailable: false,
+          };
+
+          return {
+            id: setup?.id ?? `missing-${eventId}-${teacherId}`,
+            teacher,
+            subject,
+            building: setupData.building ?? "",
+            floor: setupData.floor ?? 0,
+            classroom: setupData.classroom ?? "",
+            availability: setupData.isAvailable ? ("available" as const) : ("busy" as const),
+            locationMissing: !setup,
+          } satisfies EventTeacherSetupOverview;
+        }),
+      );
+
+      return rows
+        .filter((row): row is EventTeacherSetupOverview => row !== null)
+        .sort((left, right) => {
+          const building = left.building.localeCompare(right.building, "tr");
+
+          if (building !== 0) {
+            return building;
+          }
+
+          if (left.floor !== right.floor) {
+            return left.floor - right.floor;
+          }
+
+          return left.classroom.localeCompare(right.classroom, "tr", {
+            numeric: true,
+          });
+        });
+    } catch (error) {
+      await logFirestoreCollectionFailure({
+        collectionName: "eventTeacherSetups",
+        operation: "getEventAssignments",
+        schoolId: eventSchoolId,
+        context: {
+          eventId,
+        },
+        error,
+      });
+      throw error;
+    }
   },
   async validateEventReadiness(eventId) {
     const db = requireFirestore();
-    const event = await firestoreMeetingRepository.getEventById(eventId);
-    const setupsPromise = event
-      ? getDocs(
+    let schoolId = DEFAULT_SCHOOL_ID;
+    try {
+      const event = await firestoreMeetingRepository.getEventById(eventId);
+      schoolId = event?.schoolId?.trim() || DEFAULT_SCHOOL_ID;
+      const setupsPromise = event
+        ? getDocs(
+            query(
+              collection(db, "eventTeacherSetups"),
+              where("schoolId", "==", schoolId),
+              where("eventId", "==", event.id),
+              limit(100),
+            ),
+          )
+        : Promise.resolve({ docs: [] } as {
+            docs: Array<{
+              data: () => FirestoreEventTeacherSetupDocument;
+              id: string;
+            }>;
+          });
+      const [classesSnapshot, teachingAssignments, setupsSnapshot] = await Promise.all([
+        getDocs(
           query(
-            collection(db, "eventTeacherSetups"),
-            where("schoolId", "==", event.schoolId),
-            where("eventId", "==", event.id),
-            limit(100),
-          ),
-        )
-      : Promise.resolve({ docs: [] } as { docs: Array<{ data: () => FirestoreEventTeacherSetupDocument; id: string }> });
-    const [classesSnapshot, teachingAssignments, setupsSnapshot] = await Promise.all([
-      getDocs(
-        query(
-          collection(db, "classes"),
-          where("schoolId", "==", event?.schoolId ?? DEFAULT_SCHOOL_ID),
-          orderBy("name", "asc"),
-        ),
-      ),
-      Promise.all(
-        (event?.includedClasses ?? []).map((classId) =>
-          getTeachingAssignmentsForClass(
-            db,
-            classId,
-            undefined,
-            event?.schoolId ?? DEFAULT_SCHOOL_ID,
+            collection(db, "classes"),
+            where("schoolId", "==", schoolId),
           ),
         ),
-      ),
-      setupsPromise,
-    ]);
-    const classes = classesSnapshot.docs.map((classDocument) => {
-      const data = classDocument.data() as FirestoreClassDocument;
+        Promise.all(
+          (event?.includedClasses ?? []).map((classId) =>
+            getTeachingAssignmentsForClass(db, classId, undefined, schoolId),
+          ),
+        ),
+        setupsPromise,
+      ]);
+      const classes = classesSnapshot.docs.map((classDocument) => {
+        const data = classDocument.data() as FirestoreClassDocument;
 
-      return {
-        id: classDocument.id,
-        schoolId: data.schoolId ?? "",
-        name: data.name ?? "",
-        grade: data.grade ?? "",
-        classTeacherId: data.classTeacherId ?? "",
-        isActive: data.isActive ?? true,
-      };
-    });
-    const teachers: Teacher[] = [];
-    const teacherIdSet = new Set<string>();
-    teachingAssignments.flat().forEach((assignment) => {
-      if (!assignment.isActive) {
-        return;
-      }
-      teacherIdSet.add(assignment.teacherId);
-    });
-    setupsSnapshot.docs.forEach((setupDocument) => {
-      const data = setupDocument.data() as FirestoreEventTeacherSetupDocument;
-      if (data.teacherId) {
-        teacherIdSet.add(data.teacherId);
-      }
-    });
-    await Promise.all(
-      [...teacherIdSet].map(async (teacherId) => {
-        const teacher = await getTeacherByIdOrNull(db, teacherId);
-        if (teacher) {
-          teachers.push(teacher);
+        return {
+          id: classDocument.id,
+          schoolId: data.schoolId ?? "",
+          name: data.name ?? "",
+          grade: data.grade ?? "",
+          classTeacherId: data.classTeacherId ?? "",
+          isActive: data.isActive ?? true,
+        };
+      });
+      const teachers: Teacher[] = [];
+      const teacherIdSet = new Set<string>();
+      teachingAssignments.flat().forEach((assignment) => {
+        if (!assignment.isActive) {
+          return;
         }
-      }),
-    );
+        teacherIdSet.add(assignment.teacherId);
+      });
+      setupsSnapshot.docs.forEach((setupDocument) => {
+        const data = setupDocument.data() as FirestoreEventTeacherSetupDocument;
+        if (data.teacherId) {
+          teacherIdSet.add(data.teacherId);
+        }
+      });
+      await Promise.all(
+        [...teacherIdSet].map(async (teacherId) => {
+          const teacher = await getTeacherByIdOrNull(db, teacherId);
+          if (teacher) {
+            teachers.push(teacher);
+          }
+        }),
+      );
 
-    return buildEventReadiness({
-      event,
-      classes,
-      teachers,
-      teachingAssignments: teachingAssignments.flat(),
-      eventTeacherSetups: setupsSnapshot.docs.map((setupDocument) => ({
-        id: setupDocument.id,
-        schoolId: (setupDocument.data() as FirestoreEventTeacherSetupDocument).schoolId ?? "",
-        eventId: (setupDocument.data() as FirestoreEventTeacherSetupDocument).eventId ?? "",
-        teacherId: (setupDocument.data() as FirestoreEventTeacherSetupDocument).teacherId ?? "",
-        building: (setupDocument.data() as FirestoreEventTeacherSetupDocument).building ?? "",
-        floor: (setupDocument.data() as FirestoreEventTeacherSetupDocument).floor ?? 0,
-        classroom: (setupDocument.data() as FirestoreEventTeacherSetupDocument).classroom ?? "",
-        isAvailable: (setupDocument.data() as FirestoreEventTeacherSetupDocument).isAvailable ?? false,
-      }) as EventTeacherSetup),
-    });
+      return buildEventReadiness({
+        event,
+        classes,
+        teachers,
+        teachingAssignments: teachingAssignments.flat(),
+        eventTeacherSetups: setupsSnapshot.docs.map((setupDocument) => ({
+          id: setupDocument.id,
+          schoolId:
+            (setupDocument.data() as FirestoreEventTeacherSetupDocument).schoolId ??
+            "",
+          eventId:
+            (setupDocument.data() as FirestoreEventTeacherSetupDocument).eventId ??
+            "",
+          teacherId:
+            (setupDocument.data() as FirestoreEventTeacherSetupDocument).teacherId ??
+            "",
+          building:
+            (setupDocument.data() as FirestoreEventTeacherSetupDocument).building ??
+            "",
+          floor:
+            (setupDocument.data() as FirestoreEventTeacherSetupDocument).floor ??
+            0,
+          classroom:
+            (setupDocument.data() as FirestoreEventTeacherSetupDocument).classroom ??
+            "",
+          isAvailable:
+            (setupDocument.data() as FirestoreEventTeacherSetupDocument).isAvailable ??
+            false,
+        }) as EventTeacherSetup),
+      });
+    } catch (error) {
+      await logFirestoreCollectionFailure({
+        collectionName: "eventTeacherSetups",
+        operation: "validateEventReadiness",
+        schoolId: DEFAULT_SCHOOL_ID,
+        context: {
+          eventId,
+        },
+        error,
+      });
+      throw error;
+    }
   },
   async isMeetingCodeAvailable(meetingCode, excludingEventId) {
     const db = requireFirestore();
@@ -353,6 +396,52 @@ export const firestoreMeetingRepository: MeetingRepository = {
   },
   async restoreEventToDraft(eventId) {
     return updateFirestoreEventStatus(eventId, "restoreDraft");
+  },
+  async deleteDraftEvent(eventId) {
+    const db = requireFirestore();
+    let schoolId = DEFAULT_SCHOOL_ID;
+    try {
+      const eventRef = doc(db, "events", eventId);
+      const snapshot = await getDoc(eventRef);
+
+      if (!snapshot.exists()) {
+        throw new Error(`Event not found: ${eventId}`);
+      }
+
+      const currentEvent = mapMeetingEvent(
+        snapshot.id,
+        snapshot.data() as FirestoreEventDocument,
+      );
+      schoolId = currentEvent.schoolId?.trim() || DEFAULT_SCHOOL_ID;
+
+      if (currentEvent.status !== "draft") {
+        throw new Error("Only draft events can be deleted.");
+      }
+
+      const setupsSnapshot = await getDocs(
+        query(
+          collection(db, "eventTeacherSetups"),
+          where("schoolId", "==", schoolId),
+          where("eventId", "==", eventId),
+        ),
+      );
+
+      const batch = writeBatch(db);
+      setupsSnapshot.docs.forEach((setupDocument) => batch.delete(setupDocument.ref));
+      batch.delete(eventRef);
+      await batch.commit();
+    } catch (error) {
+      await logFirestoreCollectionFailure({
+        collectionName: "events",
+        operation: "deleteDraftEvent",
+        schoolId,
+        context: {
+          eventId,
+        },
+        error,
+      });
+      throw error;
+    }
   },
   async createEvent(input) {
     const db = requireFirestore();

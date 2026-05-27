@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { EventLifecycleActions } from "../components/EventLifecycleActions";
 import type { MeetingEvent } from "../domain/models";
 import { useT } from "../hooks/useT";
@@ -25,9 +25,11 @@ const statusClasses: Record<MeetingEvent["status"], string> = {
 
 export function AdminEventsPage() {
   const { t } = useT();
+  const location = useLocation();
   const { currentSchoolId, hasHydrated } = useAdminSchoolStore();
   const [status, setStatus] = useState<EventStatus>("loading");
   const [events, setEvents] = useState<MeetingEvent[]>([]);
+  const locationMessageKey = (location.state as { messageKey?: string } | null)?.messageKey;
   const sortedEvents = useMemo(
     () =>
       [...events].sort((left, right) => right.date.localeCompare(left.date)),
@@ -91,6 +93,14 @@ export function AdminEventsPage() {
           </Link>
         </div>
       </section>
+
+      {locationMessageKey ? (
+        <section className="surface p-6 text-center">
+          <p className="status-success rounded-2xl px-4 py-3 text-sm font-bold">
+            {t(locationMessageKey as TranslationKey)}
+          </p>
+        </section>
+      ) : null}
 
       {status === "loading" ? (
         <section className="surface p-6 text-center">
