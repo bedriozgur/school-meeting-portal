@@ -2,6 +2,7 @@ import type {
   MeetingEvent,
   SchoolClass,
   School,
+  SchoolUser,
   Student,
   Teacher,
   TeacherAssignment,
@@ -15,6 +16,15 @@ export const mockSchool: School = {
   name: "Atatürk Ortaokulu",
   logoInitials: "OT",
 };
+
+export const mockSchools: School[] = [
+  mockSchool,
+  {
+    id: "yildiz-ortaokulu",
+    name: "Yıldız Ortaokulu",
+    logoInitials: "YO",
+  },
+];
 
 export const mockClasses: SchoolClass[] = [
   {
@@ -119,6 +129,25 @@ export const mockStudents: Student[] = [
     className: "6-A",
     grade: "6",
     classTeacherId: "mehmet-kaya",
+  },
+];
+
+export const mockSchoolUsers: SchoolUser[] = [
+  {
+    id: `${mockSchool.id}_school-admin-1`,
+    schoolId: mockSchool.id,
+    uid: "school-admin-1",
+    email: "school-admin@example.com",
+    role: "schoolAdmin",
+    isActive: true,
+  },
+  {
+    id: `${mockSchool.id}_staff-1`,
+    schoolId: mockSchool.id,
+    uid: "staff-1",
+    email: "staff@example.com",
+    role: "staff",
+    isActive: true,
   },
 ];
 

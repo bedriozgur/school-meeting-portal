@@ -13,6 +13,7 @@ import { AdminEventsPage } from "./routes/AdminEventsPage";
 import { AdminImportPage } from "./routes/AdminImportPage";
 import { AdminLoginPage } from "./routes/AdminLoginPage";
 import { AdminPilotChecklistPage } from "./routes/AdminPilotChecklistPage";
+import { AdminSchoolUsersPage } from "./routes/AdminSchoolUsersPage";
 import { AdminQrPage } from "./routes/AdminQrPage";
 import { AdminPlaceholderPage } from "./routes/AdminPlaceholderPage";
 import { AdminStudentsPage } from "./routes/AdminStudentsPage";
@@ -55,6 +56,7 @@ const router = createBrowserRouter([
             children: [
               { index: true, element: <AdminDashboardPage /> },
               { path: "pilot-checklist", element: <AdminPilotChecklistPage /> },
+              { path: "school-users", element: <AdminSchoolUsersPage /> },
               { path: "events", element: <AdminEventsPage /> },
               { path: "events/new", element: <AdminEventFormPage /> },
               { path: "events/:eventId", element: <AdminEventDetailPage /> },

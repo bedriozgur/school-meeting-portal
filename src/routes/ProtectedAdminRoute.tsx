@@ -1,13 +1,17 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { SchoolHeader } from "../components/SchoolHeader";
 import { useAuth } from "../auth/useAuth";
+import { useSchoolAuthorization } from "../auth/useSchoolAuthorization";
 import { useT } from "../hooks/useT";
+import { useAdminSchoolStore } from "../store/adminSchoolStore";
 
 export function ProtectedAdminRoute() {
-  const { isAdmin, isLoading, signOut, user } = useAuth();
+  const { signOut, user } = useAuth();
+  const { currentSchoolId, hasHydrated } = useAdminSchoolStore();
+  const { canManageSchool, isLoading } = useSchoolAuthorization(currentSchoolId);
   const { t } = useT();
 
-  if (isLoading) {
+  if (isLoading || !hasHydrated) {
     return (
       <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-3xl flex-col gap-8">
         <SchoolHeader />
@@ -24,7 +28,7 @@ export function ProtectedAdminRoute() {
     return <Navigate replace to="/admin/login" />;
   }
 
-  if (!isAdmin) {
+  if (!canManageSchool) {
     return (
       <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-3xl flex-col gap-8">
         <SchoolHeader />

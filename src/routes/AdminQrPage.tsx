@@ -6,6 +6,7 @@ import type { TranslationKey } from "../i18n/i18n";
 import { repositories } from "../repositories";
 import { QrCodeCard } from "../features/qr/QrCodeCard";
 import { QrPrintCard } from "../features/qr/QrPrintCard";
+import { useAdminSchoolStore } from "../store/adminSchoolStore";
 
 type LoadStatus = "loading" | "ready" | "error";
 
@@ -17,6 +18,7 @@ type StudentSupportTarget = {
 
 export function AdminQrPage() {
   const { t } = useT();
+  const { currentSchoolId, hasHydrated } = useAdminSchoolStore();
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [events, setEvents] = useState<MeetingEvent[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -29,10 +31,14 @@ export function AdminQrPage() {
   useEffect(() => {
     let isCurrent = true;
 
+    if (!hasHydrated) {
+      return undefined;
+    }
+
     setStatus("loading");
     Promise.all([
-      repositories.meetingRepository.listEvents(),
-      repositories.studentRepository.listStudents(),
+      repositories.meetingRepository.listEvents(currentSchoolId),
+      repositories.studentRepository.listStudents(currentSchoolId),
     ])
       .then(([nextEvents, nextStudents]) => {
         if (!isCurrent) {
@@ -62,7 +68,7 @@ export function AdminQrPage() {
     return () => {
       isCurrent = false;
     };
-  }, []);
+  }, [currentSchoolId, hasHydrated]);
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedEventId) ?? null,

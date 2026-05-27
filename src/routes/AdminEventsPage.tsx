@@ -5,6 +5,7 @@ import type { MeetingEvent } from "../domain/models";
 import { useT } from "../hooks/useT";
 import type { TranslationKey } from "../i18n/i18n";
 import { repositories } from "../repositories";
+import { useAdminSchoolStore } from "../store/adminSchoolStore";
 
 type EventStatus = "idle" | "loading" | "success" | "error";
 
@@ -24,6 +25,7 @@ const statusClasses: Record<MeetingEvent["status"], string> = {
 
 export function AdminEventsPage() {
   const { t } = useT();
+  const { currentSchoolId, hasHydrated } = useAdminSchoolStore();
   const [status, setStatus] = useState<EventStatus>("loading");
   const [events, setEvents] = useState<MeetingEvent[]>([]);
   const sortedEvents = useMemo(
@@ -43,9 +45,13 @@ export function AdminEventsPage() {
   useEffect(() => {
     let isCurrent = true;
 
+    if (!hasHydrated) {
+      return undefined;
+    }
+
     setStatus("loading");
     repositories.meetingRepository
-      .listEvents()
+      .listEvents(currentSchoolId)
       .then((nextEvents) => {
         if (!isCurrent) {
           return;
@@ -65,7 +71,7 @@ export function AdminEventsPage() {
     return () => {
       isCurrent = false;
     };
-  }, []);
+  }, [currentSchoolId, hasHydrated]);
 
   return (
     <div className="space-y-5">

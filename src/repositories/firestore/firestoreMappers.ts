@@ -1,6 +1,7 @@
 import type {
   MeetingEvent,
   School,
+  SchoolUser,
   Student,
   Teacher,
   TeacherAssignment,
@@ -12,6 +13,7 @@ import type {
   FirestoreEventDocument,
   FirestoreEventTeacherSetupDocument,
   FirestoreSchoolDocument,
+  FirestoreSchoolUserDocument,
   FirestoreStudentDocument,
   FirestoreTeachingAssignmentDocument,
   FirestoreTeacherDocument,
@@ -22,6 +24,22 @@ export function mapSchool(id: string, data: FirestoreSchoolDocument): School {
     id,
     name: data.name ?? "",
     logoInitials: data.logoInitials ?? "",
+  };
+}
+
+export function mapSchoolUser(
+  id: string,
+  data: FirestoreSchoolUserDocument,
+): SchoolUser {
+  return {
+    id,
+    schoolId: data.schoolId ?? "",
+    uid: data.uid ?? "",
+    email: data.email ?? "",
+    role: data.role === "staff" ? "staff" : "schoolAdmin",
+    isActive: data.isActive ?? true,
+    createdAt: stringifyTimestamp(data.createdAt),
+    updatedAt: stringifyTimestamp(data.updatedAt),
   };
 }
 

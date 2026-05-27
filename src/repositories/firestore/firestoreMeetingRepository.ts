@@ -52,10 +52,14 @@ export const firestoreMeetingRepository: MeetingRepository = {
 
     return findActiveOrDraftEventByCode(db, meetingCode);
   },
-  async listEvents() {
+  async listEvents(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
     const snapshot = await getDocs(
-      query(collection(db, "events"), orderBy("date", "desc")),
+      query(
+        collection(db, "events"),
+        where("schoolId", "==", schoolId),
+        orderBy("date", "desc"),
+      ),
     );
 
     return snapshot.docs.map((eventDocument) =>
@@ -65,10 +69,10 @@ export const firestoreMeetingRepository: MeetingRepository = {
       ),
     );
   },
-  async countEvents() {
+  async countEvents(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
     const snapshot = await getCountFromServer(
-      query(collection(db, "events"), where("schoolId", "==", DEFAULT_SCHOOL_ID)),
+      query(collection(db, "events"), where("schoolId", "==", schoolId)),
     );
 
     return snapshot.data().count;
@@ -96,7 +100,7 @@ export const firestoreMeetingRepository: MeetingRepository = {
 
     const teachingAssignments = await Promise.all(
       event.includedClasses.map((classId) =>
-        getTeachingAssignmentsForClass(db, classId),
+        getTeachingAssignmentsForClass(db, classId, undefined, event.schoolId),
       ),
     );
     const teacherSubjectById = new Map<string, string>();
@@ -113,6 +117,7 @@ export const firestoreMeetingRepository: MeetingRepository = {
     const setupsSnapshot = await getDocs(
       query(
         collection(db, "eventTeacherSetups"),
+        where("schoolId", "==", event.schoolId),
         where("eventId", "==", eventId),
         limit(100),
       ),
@@ -185,16 +190,28 @@ export const firestoreMeetingRepository: MeetingRepository = {
       ? getDocs(
           query(
             collection(db, "eventTeacherSetups"),
+            where("schoolId", "==", event.schoolId),
             where("eventId", "==", event.id),
             limit(100),
           ),
         )
       : Promise.resolve({ docs: [] } as { docs: Array<{ data: () => FirestoreEventTeacherSetupDocument; id: string }> });
     const [classesSnapshot, teachingAssignments, setupsSnapshot] = await Promise.all([
-      getDocs(query(collection(db, "classes"), orderBy("name", "asc"))),
+      getDocs(
+        query(
+          collection(db, "classes"),
+          where("schoolId", "==", event?.schoolId ?? DEFAULT_SCHOOL_ID),
+          orderBy("name", "asc"),
+        ),
+      ),
       Promise.all(
         (event?.includedClasses ?? []).map((classId) =>
-          getTeachingAssignmentsForClass(db, classId),
+          getTeachingAssignmentsForClass(
+            db,
+            classId,
+            undefined,
+            event?.schoolId ?? DEFAULT_SCHOOL_ID,
+          ),
         ),
       ),
       setupsPromise,

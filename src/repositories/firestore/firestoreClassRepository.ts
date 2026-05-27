@@ -18,10 +18,14 @@ import { requireFirestore } from "./firestoreLookups";
 import type { FirestoreClassDocument } from "./firestoreTypes";
 
 export const firestoreClassRepository: ClassRepository = {
-  async listClasses() {
+  async listClasses(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
     const snapshot = await getDocs(
-      query(collection(db, "classes"), orderBy("name", "asc")),
+      query(
+        collection(db, "classes"),
+        where("schoolId", "==", schoolId),
+        orderBy("name", "asc"),
+      ),
     );
 
     return snapshot.docs.map((classDocument) =>
@@ -31,10 +35,10 @@ export const firestoreClassRepository: ClassRepository = {
       ),
     );
   },
-  async countClasses() {
+  async countClasses(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
     const snapshot = await getCountFromServer(
-      query(collection(db, "classes"), where("schoolId", "==", DEFAULT_SCHOOL_ID)),
+      query(collection(db, "classes"), where("schoolId", "==", schoolId)),
     );
 
     return snapshot.data().count;

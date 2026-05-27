@@ -3,6 +3,8 @@ import { mockAssignmentRepository } from "./mock/mockAssignmentRepository";
 import { mockTeachingAssignmentRepository } from "./mock/mockTeachingAssignmentRepository";
 import { mockClassRepository } from "./mock/mockClassRepository";
 import { mockParentMeetingRepository } from "./mock/mockParentMeetingRepository";
+import { mockSchoolRepository } from "./mock/mockSchoolRepository";
+import { mockSchoolUserRepository } from "./mock/mockSchoolUserRepository";
 import { mockStudentRepository } from "./mock/mockStudentRepository";
 import { mockTeacherRepository } from "./mock/mockTeacherRepository";
 import { firestoreAssignmentRepository } from "./firestore/firestoreAssignmentRepository";
@@ -10,6 +12,8 @@ import { firestoreTeachingAssignmentRepository } from "./firestore/firestoreTeac
 import { firestoreMeetingRepository } from "./firestore/firestoreMeetingRepository";
 import { firestoreClassRepository } from "./firestore/firestoreClassRepository";
 import { firestoreParentMeetingRepository } from "./firestore/firestoreParentMeetingRepository";
+import { firestoreSchoolRepository } from "./firestore/firestoreSchoolRepository";
+import { firestoreSchoolUserRepository } from "./firestore/firestoreSchoolUserRepository";
 import { firestoreStudentRepository } from "./firestore/firestoreStudentRepository";
 import { firestoreTeacherRepository } from "./firestore/firestoreTeacherRepository";
 import type {
@@ -17,6 +21,8 @@ import type {
   ClassRepository,
   MeetingRepository,
   ParentMeetingRepository,
+  SchoolRepository,
+  SchoolUserRepository,
   StudentRepository,
   TeacherRepository,
   TeachingAssignmentRepository,
@@ -30,6 +36,8 @@ type RepositorySet = {
   teacherRepository: TeacherRepository;
   teachingAssignmentRepository: TeachingAssignmentRepository;
   assignmentRepository: AssignmentRepository;
+  schoolRepository: SchoolRepository;
+  schoolUserRepository: SchoolUserRepository;
   studentRepository: StudentRepository;
   parentMeetingRepository: ParentMeetingRepository;
 };
@@ -46,6 +54,8 @@ const mockRepositories: RepositorySet = {
   teacherRepository: mockTeacherRepository,
   teachingAssignmentRepository: mockTeachingAssignmentRepository,
   assignmentRepository: mockAssignmentRepository,
+  schoolRepository: mockSchoolRepository,
+  schoolUserRepository: mockSchoolUserRepository,
   studentRepository: mockStudentRepository,
   parentMeetingRepository: mockParentMeetingRepository,
 };
@@ -56,6 +66,8 @@ const firestoreRepositories: RepositorySet = {
   teacherRepository: firestoreTeacherRepository,
   teachingAssignmentRepository: firestoreTeachingAssignmentRepository,
   assignmentRepository: firestoreAssignmentRepository,
+  schoolRepository: firestoreSchoolRepository,
+  schoolUserRepository: firestoreSchoolUserRepository,
   studentRepository: firestoreStudentRepository,
   parentMeetingRepository: firestoreParentMeetingRepository,
 };

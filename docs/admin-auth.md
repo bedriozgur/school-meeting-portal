@@ -2,12 +2,14 @@
 
 ## Current Model
 
-The app supports two admin authorization signals:
+The app supports several admin authorization signals:
 
 - temporary client-side email allowlist with `VITE_ADMIN_EMAILS`
-- Firebase Auth custom claim `admin: true`
+- Firebase Auth custom claim `superAdmin: true`
+- Firebase Auth custom claim `admin: true` for legacy pilot compatibility
+- Firestore `schoolUsers` role documents for school-scoped access
 
-The UI allows access to protected admin routes when either signal is present.
+The login method does not determine permissions. The UI allows access to protected admin routes when any supported authorization signal is present.
 
 ## Temporary Email Allowlist
 
@@ -23,7 +25,15 @@ The allowlist is not sufficient for Firestore admin writes.
 
 ## Production Custom Claims
 
-Production admin authorization should use Firebase custom claims:
+Production platform-wide admin authorization should use Firebase custom claims:
+
+```json
+{
+  "superAdmin": true
+}
+```
+
+Legacy pilot compatibility can continue to use:
 
 ```json
 {
@@ -31,7 +41,7 @@ Production admin authorization should use Firebase custom claims:
 }
 ```
 
-Firestore rules trust `request.auth.token.admin == true` for admin-managed collection reads and writes.
+Firestore rules trust `request.auth.token.superAdmin == true` for platform-wide access and continue to support `request.auth.token.admin == true` temporarily for the pilot.
 
 ## Example Admin SDK Claim Setup
 
@@ -46,7 +56,7 @@ initializeApp({
 });
 
 await getAuth().setCustomUserClaims("USER_UID", {
-  admin: true,
+  superAdmin: true,
 });
 ```
 
@@ -57,24 +67,36 @@ After setting a claim, the user must refresh their ID token. Signing out and sig
 `useAuth()` exposes:
 
 - `isAdmin`
+- `isSuperAdmin`
+- `isLegacyAdmin`
 - `isAllowlistedAdmin`
 - `hasAdminClaim`
 - `authLoading`
+- `uid`
+- `email`
+- `authProviderId`
 - `user`
 - `signInWithGoogle`
+- `signInWithEmailAndPassword`
 - `signOut`
 
-`isAdmin` is true when either the custom claim or temporary allowlist matches.
+`isAdmin` remains the legacy UI-level admin flag for the pilot allowlist and global admin claims. School-scoped authorization is resolved separately through `useSchoolAuthorization()`.
 
 ## Firestore Access
 
-Firestore rules only grant admin-managed collection writes to authenticated users with `admin: true`.
+Firestore rules now support:
+
+- `superAdmin: true` for full platform access
+- `admin: true` for legacy pilot compatibility
+- `schoolUsers` role documents for school-scoped admin and staff access
 
 This means:
 
 - allowlisted users can access the admin shell UI
-- allowlisted users without the custom claim cannot perform Firestore admin writes
-- custom-claim admins can read and write admin-managed collections according to `firestore.rules`
+- allowlisted users without an admin claim still cannot perform Firestore writes
+- super admins can read and write all managed collections
+- legacy admins can continue using the pilot access model
+- school admins and staff are authorized through `schoolUsers` documents
 
 ## Future Hardening
 

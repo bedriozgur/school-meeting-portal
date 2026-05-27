@@ -1,4 +1,5 @@
 import type { MeetingRepository } from "../interfaces";
+import { DEFAULT_SCHOOL_ID } from "../../config/school";
 import {
   assertValidEventTransition,
   getNextStatusForAction,
@@ -32,11 +33,11 @@ export const mockMeetingRepository: MeetingRepository = {
       null
     );
   },
-  async listEvents() {
-    return mockMeetingEvents;
+  async listEvents(schoolId = DEFAULT_SCHOOL_ID) {
+    return mockMeetingEvents.filter((meeting) => meeting.schoolId === schoolId);
   },
-  async countEvents() {
-    return mockMeetingEvents.length;
+  async countEvents(schoolId = DEFAULT_SCHOOL_ID) {
+    return mockMeetingEvents.filter((meeting) => meeting.schoolId === schoolId).length;
   },
   async getEventById(eventId) {
     return mockMeetingEvents.find((event) => event.id === eventId) ?? null;

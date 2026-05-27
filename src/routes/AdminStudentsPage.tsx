@@ -3,11 +3,13 @@ import { Link } from "react-router-dom";
 import type { Student } from "../domain/models";
 import { useT } from "../hooks/useT";
 import { repositories } from "../repositories";
+import { useAdminSchoolStore } from "../store/adminSchoolStore";
 
 type LoadStatus = "loading" | "success" | "error";
 
 export function AdminStudentsPage() {
   const { t } = useT();
+  const { currentSchoolId, hasHydrated } = useAdminSchoolStore();
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [students, setStudents] = useState<Student[]>([]);
   const [search, setSearch] = useState("");
@@ -28,9 +30,13 @@ export function AdminStudentsPage() {
   useEffect(() => {
     let isCurrent = true;
 
+    if (!hasHydrated) {
+      return undefined;
+    }
+
     setStatus("loading");
     repositories.studentRepository
-      .listStudents()
+      .listStudents(currentSchoolId)
       .then((nextStudents) => {
         if (!isCurrent) {
           return;
@@ -48,7 +54,7 @@ export function AdminStudentsPage() {
     return () => {
       isCurrent = false;
     };
-  }, []);
+  }, [currentSchoolId, hasHydrated]);
 
   return (
     <div className="space-y-5">

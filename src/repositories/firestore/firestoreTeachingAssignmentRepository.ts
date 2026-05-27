@@ -34,11 +34,12 @@ import {
 } from "../../utils/teachingAssignments";
 
 export const firestoreTeachingAssignmentRepository: TeachingAssignmentRepository = {
-  async listTeachingAssignmentsForClass(classId) {
+  async listTeachingAssignmentsForClass(classId, schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
     const snapshot = await getDocs(
       query(
         collection(db, "teachingAssignments"),
+        where("schoolId", "==", schoolId),
         where("classId", "==", classId),
       ),
     );
@@ -63,11 +64,12 @@ export const firestoreTeachingAssignmentRepository: TeachingAssignmentRepository
 
     return rows.sort(sortTeachingAssignments);
   },
-  async listTeachingAssignmentsForTeacher(teacherId) {
+  async listTeachingAssignmentsForTeacher(teacherId, schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
     const snapshot = await getDocs(
       query(
         collection(db, "teachingAssignments"),
+        where("schoolId", "==", schoolId),
         where("teacherId", "==", teacherId),
       ),
     );
@@ -92,12 +94,12 @@ export const firestoreTeachingAssignmentRepository: TeachingAssignmentRepository
 
     return rows.sort(sortTeachingAssignments);
   },
-  async countTeachingAssignments() {
+  async countTeachingAssignments(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
     const snapshot = await getCountFromServer(
       query(
         collection(db, "teachingAssignments"),
-        where("schoolId", "==", DEFAULT_SCHOOL_ID),
+        where("schoolId", "==", schoolId),
       ),
     );
 

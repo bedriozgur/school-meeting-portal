@@ -36,6 +36,8 @@ export const firestoreAssignmentRepository: AssignmentRepository = {
     }
 
     const event = eventSnapshot.data() as { includedClasses?: string[] };
+    const eventSchoolId =
+      (eventSnapshot.data() as { schoolId?: string }).schoolId ?? DEFAULT_SCHOOL_ID;
     const teachingAssignments = await Promise.all(
       (event.includedClasses ?? []).map((classId) =>
         getTeachingAssignmentsForClass(db, classId),
@@ -55,6 +57,7 @@ export const firestoreAssignmentRepository: AssignmentRepository = {
     const setupsSnapshot = await getDocs(
       query(
         collection(db, "eventTeacherSetups"),
+        where("schoolId", "==", eventSchoolId),
         where("eventId", "==", eventId),
         limit(100),
       ),

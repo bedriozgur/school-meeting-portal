@@ -2,11 +2,13 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { useT } from "../hooks/useT";
 import { usePilotReadinessSummary } from "../features/pilot/usePilotReadiness";
+import { useAdminSchoolStore } from "../store/adminSchoolStore";
 
 export function AdminDashboardPage() {
   const { signOut, user } = useAuth();
   const { t } = useT();
-  const { status, data } = usePilotReadinessSummary();
+  const { currentSchoolId, hasHydrated } = useAdminSchoolStore();
+  const { status, data } = usePilotReadinessSummary(currentSchoolId, hasHydrated);
 
   const summary = status === "ready" && data
     ? {
@@ -49,6 +51,9 @@ export function AdminDashboardPage() {
           <h2 className="text-strong mt-2 text-2xl font-black">
             {t("admin.pilotSummaryTitle")}
           </h2>
+          <p className="copy mt-2 text-xs font-semibold">
+            {t("admin.currentSchoolLabel")}: {currentSchoolId}
+          </p>
           <p className="copy mt-2 text-sm font-semibold leading-6">
             {t("admin.pilotSummaryDescription")}
           </p>

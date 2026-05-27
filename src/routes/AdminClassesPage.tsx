@@ -3,11 +3,13 @@ import { Link } from "react-router-dom";
 import type { SchoolClass, Teacher } from "../domain/models";
 import { useT } from "../hooks/useT";
 import { repositories } from "../repositories";
+import { useAdminSchoolStore } from "../store/adminSchoolStore";
 
 type LoadStatus = "loading" | "success" | "error";
 
 export function AdminClassesPage() {
   const { t } = useT();
+  const { currentSchoolId, hasHydrated } = useAdminSchoolStore();
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -38,10 +40,14 @@ export function AdminClassesPage() {
   useEffect(() => {
     let isCurrent = true;
 
+    if (!hasHydrated) {
+      return undefined;
+    }
+
     setStatus("loading");
     Promise.all([
-      repositories.classRepository.listClasses(),
-      repositories.teacherRepository.listTeachers(),
+      repositories.classRepository.listClasses(currentSchoolId),
+      repositories.teacherRepository.listTeachers(currentSchoolId),
     ])
       .then(([nextClasses, nextTeachers]) => {
         if (!isCurrent) {
@@ -61,7 +67,7 @@ export function AdminClassesPage() {
     return () => {
       isCurrent = false;
     };
-  }, []);
+  }, [currentSchoolId, hasHydrated]);
 
   return (
     <div className="space-y-5">

@@ -6,6 +6,8 @@ import type {
   EventReadiness,
   ParentMeetingView,
   SchoolClass,
+  SchoolUser,
+  SchoolUserFormInput,
   Student,
   StudentBulkUpsertResult,
   StudentFormInput,
@@ -18,12 +20,18 @@ import type {
   TeachingAssignment,
   TeachingAssignmentBulkUpsertResult,
   TeachingAssignmentFormInput,
+  School,
 } from "../domain/models";
+
+export type SchoolRepository = {
+  listSchools: () => Promise<School[]>;
+  getSchoolById: (schoolId: string) => Promise<School | null>;
+};
 
 export type MeetingRepository = {
   findByCode: (meetingCode: string) => Promise<MeetingEvent | null>;
-  listEvents: () => Promise<MeetingEvent[]>;
-  countEvents: () => Promise<number>;
+  listEvents: (schoolId?: string) => Promise<MeetingEvent[]>;
+  countEvents: (schoolId?: string) => Promise<number>;
   getEventById: (eventId: string) => Promise<MeetingEvent | null>;
   getEventAssignments: (
     eventId: string,
@@ -45,10 +53,23 @@ export type MeetingRepository = {
   ) => Promise<MeetingEvent>;
 };
 
+export type SchoolUserRepository = {
+  listSchoolUsers: (schoolId: string) => Promise<SchoolUser[]>;
+  getUserSchoolRoles: (uid: string) => Promise<SchoolUser[]>;
+  upsertSchoolUserRole: (input: SchoolUserFormInput) => Promise<SchoolUser>;
+  deactivateSchoolUserRole: (id: string) => Promise<SchoolUser>;
+};
+
 export type TeachingAssignmentRepository = {
-  listTeachingAssignmentsForClass: (classId: string) => Promise<TeachingAssignment[]>;
-  listTeachingAssignmentsForTeacher: (teacherId: string) => Promise<TeachingAssignment[]>;
-  countTeachingAssignments: () => Promise<number>;
+  listTeachingAssignmentsForClass: (
+    classId: string,
+    schoolId?: string,
+  ) => Promise<TeachingAssignment[]>;
+  listTeachingAssignmentsForTeacher: (
+    teacherId: string,
+    schoolId?: string,
+  ) => Promise<TeachingAssignment[]>;
+  countTeachingAssignments: (schoolId?: string) => Promise<number>;
   getTeachingAssignmentById: (teachingAssignmentId: string) => Promise<TeachingAssignment | null>;
   createTeachingAssignment: (
     input: TeachingAssignmentFormInput,
@@ -79,8 +100,8 @@ export type EventTeacherSetupRepository = {
 };
 
 export type ClassRepository = {
-  listClasses: () => Promise<SchoolClass[]>;
-  countClasses: () => Promise<number>;
+  listClasses: (schoolId?: string) => Promise<SchoolClass[]>;
+  countClasses: (schoolId?: string) => Promise<number>;
   getClassById: (classId: string) => Promise<SchoolClass | null>;
   createClass: (input: ClassFormInput) => Promise<SchoolClass>;
   updateClass: (
@@ -93,8 +114,8 @@ export type ClassRepository = {
 };
 
 export type TeacherRepository = {
-  listTeachers: () => Promise<Teacher[]>;
-  countTeachers: () => Promise<number>;
+  listTeachers: (schoolId?: string) => Promise<Teacher[]>;
+  countTeachers: (schoolId?: string) => Promise<number>;
   getTeacherById: (teacherId: string) => Promise<Teacher | null>;
   createTeacher: (input: TeacherFormInput) => Promise<Teacher>;
   updateTeacher: (
@@ -110,8 +131,8 @@ export type AssignmentRepository = {
 } & EventTeacherSetupRepository;
 
 export type StudentRepository = {
-  listStudents: () => Promise<Student[]>;
-  countStudents: () => Promise<number>;
+  listStudents: (schoolId?: string) => Promise<Student[]>;
+  countStudents: (schoolId?: string) => Promise<number>;
   getStudentById: (studentId: string) => Promise<Student | null>;
   createStudent: (input: StudentFormInput) => Promise<Student>;
   updateStudent: (

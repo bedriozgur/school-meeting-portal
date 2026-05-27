@@ -13,14 +13,14 @@ import {
 } from "../../utils/teachingAssignments";
 
 export const mockTeachingAssignmentRepository: TeachingAssignmentRepository = {
-  async listTeachingAssignmentsForClass(classId) {
-    return getTeachingAssignmentsForClass(classId);
+  async listTeachingAssignmentsForClass(classId, schoolId = DEFAULT_SCHOOL_ID) {
+    return getTeachingAssignmentsForClass(classId, schoolId);
   },
-  async listTeachingAssignmentsForTeacher(teacherId) {
-    return getTeachingAssignmentsForTeacher(teacherId);
+  async listTeachingAssignmentsForTeacher(teacherId, schoolId = DEFAULT_SCHOOL_ID) {
+    return getTeachingAssignmentsForTeacher(teacherId, schoolId);
   },
-  async countTeachingAssignments() {
-    return mockTeachingAssignments.length;
+  async countTeachingAssignments(schoolId = DEFAULT_SCHOOL_ID) {
+    return mockTeachingAssignments.filter((assignment) => assignment.schoolId === schoolId).length;
   },
   async getTeachingAssignmentById(teachingAssignmentId) {
     return (
@@ -124,15 +124,23 @@ export const mockTeachingAssignmentRepository: TeachingAssignmentRepository = {
   },
 };
 
-export function getTeachingAssignmentsForClass(classId: string) {
+export function getTeachingAssignmentsForClass(classId: string, schoolId = DEFAULT_SCHOOL_ID) {
   return mockTeachingAssignments
-    .filter((teachingAssignment) => teachingAssignment.classId === classId)
+    .filter(
+      (teachingAssignment) =>
+        teachingAssignment.schoolId === schoolId &&
+        teachingAssignment.classId === classId,
+    )
     .map((teachingAssignment) => resolveTeachingAssignment(teachingAssignment));
 }
 
-export function getTeachingAssignmentsForTeacher(teacherId: string) {
+export function getTeachingAssignmentsForTeacher(teacherId: string, schoolId = DEFAULT_SCHOOL_ID) {
   return mockTeachingAssignments
-    .filter((teachingAssignment) => teachingAssignment.teacherId === teacherId)
+    .filter(
+      (teachingAssignment) =>
+        teachingAssignment.schoolId === schoolId &&
+        teachingAssignment.teacherId === teacherId,
+    )
     .map((teachingAssignment) => resolveTeachingAssignment(teachingAssignment));
 }
 

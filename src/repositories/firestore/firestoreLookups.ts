@@ -10,6 +10,7 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { getFirebaseFirestore } from "../../lib/firebase";
+import { DEFAULT_SCHOOL_ID } from "../../config/school";
 import type {
   MeetingEvent,
   School,
@@ -65,6 +66,7 @@ export async function findActiveOrDraftEventByCode(
     try {
       const eventQuery = query(
         collection(db, "events"),
+        where("schoolId", "==", DEFAULT_SCHOOL_ID),
         where("meetingCode", "==", normalizedCode),
         where("status", "in", ["active", "draft"]),
         limit(1),
@@ -229,11 +231,13 @@ export async function getTeachingAssignmentsForClass(
   classId: string,
   teacherLookup: (teacherId: string) => Promise<Teacher | null> = (teacherId) =>
     getTeacherByIdOrNull(db, teacherId),
+  schoolId = DEFAULT_SCHOOL_ID,
 ): Promise<TeachingAssignment[]> {
   return runFirestoreParentLookupStep("teachingAssignments lookup", { classId }, async () => {
     try {
       logFirestoreParentLookup("teachingAssignments query started", {
         classId,
+        schoolId: String(schoolId ?? "").trim(),
         queryField: "classId",
         queryValueType: "string",
         limit: 100,
@@ -241,12 +245,14 @@ export async function getTeachingAssignmentsForClass(
       const snapshot = await getDocs(
         query(
           collection(db, "teachingAssignments"),
+          where("schoolId", "==", schoolId),
           where("classId", "==", classId),
           limit(100),
         ),
       );
       logFirestoreParentLookup("teachingAssignments query resolved", {
         classId,
+        schoolId: String(schoolId ?? "").trim(),
         docsCount: snapshot.docs.length,
       });
 

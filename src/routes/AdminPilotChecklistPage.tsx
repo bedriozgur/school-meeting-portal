@@ -5,6 +5,7 @@ import type { EventReadinessCode } from "../domain/models";
 import { useT } from "../hooks/useT";
 import type { TranslationKey } from "../i18n/i18n";
 import { usePilotReadiness } from "../features/pilot/usePilotReadiness";
+import { useAdminSchoolStore } from "../store/adminSchoolStore";
 
 const readinessKeys: Record<EventReadinessCode, TranslationKey> = {
   noIncludedClasses: "admin.readiness.errorNoIncludedClasses",
@@ -23,8 +24,9 @@ const readinessKeys: Record<EventReadinessCode, TranslationKey> = {
 
 export function AdminPilotChecklistPage() {
   const { t } = useT();
-  const { hasAdminClaim, isAllowlistedAdmin } = useAuth();
-  const { status, data } = usePilotReadiness();
+  const { hasAdminClaim, isAllowlistedAdmin, isSuperAdmin } = useAuth();
+  const { currentSchoolId, hasHydrated } = useAdminSchoolStore();
+  const { status, data } = usePilotReadiness(currentSchoolId, hasHydrated);
 
   if (status === "loading") {
     return (
@@ -59,6 +61,9 @@ export function AdminPilotChecklistPage() {
         <h1 className="heading mt-3 font-display text-4xl font-black">
           {t("admin.pilotChecklistTitle")}
         </h1>
+        <p className="copy mt-2 text-xs font-semibold">
+          {t("admin.currentSchoolLabel")}: {currentSchoolId}
+        </p>
         <p className="copy mt-3 max-w-3xl text-base font-semibold leading-7">
           {t("admin.pilotChecklistDescription")}
         </p>
@@ -110,7 +115,7 @@ export function AdminPilotChecklistPage() {
         <StatusCard
           description={t("admin.pilotChecklistAdminAuthDescription")}
           label={t("admin.pilotChecklistAdminAuthLabel")}
-          tone={isAllowlistedAdmin || hasAdminClaim ? "success" : "warning"}
+          tone={isAllowlistedAdmin || hasAdminClaim || isSuperAdmin ? "success" : "warning"}
         />
         <StatusCard
           description={

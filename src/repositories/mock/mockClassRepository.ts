@@ -3,11 +3,11 @@ import { mockClasses } from "./mockData";
 import { DEFAULT_SCHOOL_ID } from "../../config/school";
 
 export const mockClassRepository: ClassRepository = {
-  async listClasses() {
-    return mockClasses;
+  async listClasses(schoolId = DEFAULT_SCHOOL_ID) {
+    return mockClasses.filter((schoolClass) => schoolClass.schoolId === schoolId);
   },
-  async countClasses() {
-    return mockClasses.length;
+  async countClasses(schoolId = DEFAULT_SCHOOL_ID) {
+    return mockClasses.filter((schoolClass) => schoolClass.schoolId === schoolId).length;
   },
   async getClassById(classId) {
     return mockClasses.find((schoolClass) => schoolClass.id === classId) ?? null;

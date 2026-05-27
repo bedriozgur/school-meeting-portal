@@ -3,6 +3,16 @@ export type FirestoreSchoolDocument = {
   logoInitials?: string;
 };
 
+export type FirestoreSchoolUserDocument = {
+  schoolId?: string;
+  uid?: string;
+  email?: string;
+  role?: "schoolAdmin" | "staff";
+  isActive?: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+};
+
 export type FirestoreEventDocument = {
   schoolId?: string;
   meetingCode?: string;

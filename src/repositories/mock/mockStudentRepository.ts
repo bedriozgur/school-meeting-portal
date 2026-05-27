@@ -4,11 +4,11 @@ import { mockMeetingRepository } from "./mockMeetingRepository";
 import { mockClasses, mockStudents } from "./mockData";
 
 export const mockStudentRepository: StudentRepository = {
-  async listStudents() {
-    return mockStudents;
+  async listStudents(schoolId = DEFAULT_SCHOOL_ID) {
+    return mockStudents.filter((student) => student.schoolId === schoolId);
   },
-  async countStudents() {
-    return mockStudents.length;
+  async countStudents(schoolId = DEFAULT_SCHOOL_ID) {
+    return mockStudents.filter((student) => student.schoolId === schoolId).length;
   },
   async getStudentById(studentId) {
     return mockStudents.find((student) => student.id === studentId) ?? null;

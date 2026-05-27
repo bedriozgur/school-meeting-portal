@@ -23,10 +23,14 @@ import {
 import type { FirestoreStudentDocument } from "./firestoreTypes";
 
 export const firestoreStudentRepository: StudentRepository = {
-  async listStudents() {
+  async listStudents(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
     const snapshot = await getDocs(
-      query(collection(db, "students"), orderBy("schoolNumber", "asc")),
+      query(
+        collection(db, "students"),
+        where("schoolId", "==", schoolId),
+        orderBy("schoolNumber", "asc"),
+      ),
     );
     const students = await Promise.all(
       snapshot.docs.map(async (studentDocument) => {
@@ -49,10 +53,10 @@ export const firestoreStudentRepository: StudentRepository = {
 
     return students;
   },
-  async countStudents() {
+  async countStudents(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
     const snapshot = await getCountFromServer(
-      query(collection(db, "students"), where("schoolId", "==", DEFAULT_SCHOOL_ID)),
+      query(collection(db, "students"), where("schoolId", "==", schoolId)),
     );
 
     return snapshot.data().count;

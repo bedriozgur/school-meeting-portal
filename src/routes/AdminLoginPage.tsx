@@ -2,12 +2,13 @@ import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SchoolHeader } from "../components/SchoolHeader";
 import { useAuth } from "../auth/useAuth";
+import { useSchoolAuthorization } from "../auth/useSchoolAuthorization";
 import { useT } from "../hooks/useT";
 import type { TranslationKey } from "../i18n/i18n";
+import { useAdminSchoolStore } from "../store/adminSchoolStore";
 
 export function AdminLoginPage() {
   const {
-    isAdmin,
     isConfigured,
     isLoading,
     signInWithEmailAndPassword,
@@ -15,6 +16,9 @@ export function AdminLoginPage() {
     signOut,
     user,
   } = useAuth();
+  const { currentSchoolId, hasHydrated } = useAdminSchoolStore();
+  const { canManageSchool, isLoading: authorizationLoading } =
+    useSchoolAuthorization(currentSchoolId);
   const { t } = useT();
   const navigate = useNavigate();
   const [error, setError] = useState("");
@@ -23,10 +27,14 @@ export function AdminLoginPage() {
   const [fieldError, setFieldError] = useState("");
 
   useEffect(() => {
-    if (!isLoading && user && isAdmin) {
+    if (!hasHydrated) {
+      return;
+    }
+
+    if (!isLoading && !authorizationLoading && user && canManageSchool) {
       navigate("/admin", { replace: true });
     }
-  }, [isAdmin, isLoading, navigate, user]);
+  }, [authorizationLoading, canManageSchool, hasHydrated, isLoading, navigate, user]);
 
   async function handleSignIn() {
     setError("");
@@ -76,7 +84,7 @@ export function AdminLoginPage() {
           </p>
         ) : null}
 
-        {user && !isAdmin ? (
+        {user && !canManageSchool && !authorizationLoading ? (
           <div className="space-y-3 rounded-2xl border bg-white p-4 [border-color:var(--color-border)]">
             <p className="status-danger rounded-2xl px-4 py-3 text-sm font-bold">
               {t("admin.unauthorizedUser")}

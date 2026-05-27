@@ -20,9 +20,14 @@ import { isAdminEmail } from "./adminAllowlist";
 
 type AuthContextValue = {
   user: User | null;
+  uid: string | null;
+  email: string | null;
+  authProviderId: string | null;
   isLoading: boolean;
   authLoading: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+  isLegacyAdmin: boolean;
   isAllowlistedAdmin: boolean;
   hasAdminClaim: boolean;
   isConfigured: boolean;
@@ -62,15 +67,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const value = useMemo<AuthContextValue>(
     () => {
       const isAllowlistedAdmin = isAdminEmail(user?.email);
-      const hasAdminClaim = tokenResult?.claims.admin === true;
+      const isLegacyAdmin = tokenResult?.claims.admin === true;
+      const isSuperAdmin = tokenResult?.claims.superAdmin === true;
+      const authProviderId =
+        user?.providerData.find((provider) => provider?.providerId)?.providerId ??
+        null;
 
       return {
         user,
+        uid: user?.uid ?? null,
+        email: user?.email ?? null,
+        authProviderId,
         isLoading,
         authLoading: isLoading,
         isAllowlistedAdmin,
-        hasAdminClaim,
-        isAdmin: isAllowlistedAdmin || hasAdminClaim,
+        hasAdminClaim: isLegacyAdmin,
+        isLegacyAdmin,
+        isSuperAdmin,
+        isAdmin: isAllowlistedAdmin || isLegacyAdmin || isSuperAdmin,
         isConfigured,
         async signInWithGoogle() {
           if (!auth) {
@@ -100,7 +114,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         },
       };
     },
-    [auth, isConfigured, isLoading, tokenResult?.claims.admin, user],
+    [
+      auth,
+      isConfigured,
+      isLoading,
+      tokenResult?.claims.admin,
+      tokenResult?.claims.superAdmin,
+      user,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

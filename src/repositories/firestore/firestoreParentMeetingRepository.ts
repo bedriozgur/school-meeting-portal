@@ -100,6 +100,7 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
         getDocs(
           query(
             collection(db, "eventTeacherSetups"),
+            where("schoolId", "==", meetingEvent.schoolId),
             where("eventId", "==", meetingEvent.id),
             limit(100),
           ),

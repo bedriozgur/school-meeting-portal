@@ -10,18 +10,91 @@ service cloud.firestore {
       return request.query.limit != null && request.query.limit <= maxLimit;
     }
 
-    function isAdmin() {
+    function isSuperAdmin() {
       return request.auth != null
+        && request.auth.token.superAdmin is bool
+        && request.auth.token.superAdmin == true;
+    }
+
+    function isLegacyAdmin() {
+      return request.auth != null
+        && request.auth.token.admin is bool
         && request.auth.token.admin == true;
+    }
+
+    function schoolUserPath(schoolId) {
+      return /databases/$(database)/documents/schoolUsers/$(schoolId + "_" + request.auth.uid);
+    }
+
+    function schoolUserExists(schoolId) {
+      return request.auth != null && exists(schoolUserPath(schoolId));
+    }
+
+    function schoolUserData(schoolId) {
+      return get(schoolUserPath(schoolId)).data;
+    }
+
+    function isActiveSchoolUser(schoolId) {
+      return schoolUserExists(schoolId) && schoolUserData(schoolId).isActive == true;
+    }
+
+    function isSchoolAdmin(schoolId) {
+      return isSuperAdmin()
+        || isLegacyAdmin()
+        || (request.auth != null
+          && isActiveSchoolUser(schoolId)
+          && schoolUserData(schoolId).role == "schoolAdmin");
+    }
+
+    function isSchoolStaff(schoolId) {
+      return isSuperAdmin()
+        || isLegacyAdmin()
+        || (request.auth != null
+          && isActiveSchoolUser(schoolId)
+          && (
+            schoolUserData(schoolId).role == "staff"
+            || schoolUserData(schoolId).role == "schoolAdmin"
+          ));
+    }
+
+    function isSchoolMember(schoolId) {
+      return isSchoolAdmin(schoolId) || isSchoolStaff(schoolId);
     }
 
     match /schools/{schoolId} {
       // Public read is required after an event has been resolved so the parent
       // dashboard can render school context. Keep school documents free of
       // private student or staff data.
-      allow get: if true;
-      allow list: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow get: if true || isSchoolMember(schoolId);
+      allow list: if isSuperAdmin() || isLegacyAdmin();
+      allow create: if isSchoolAdmin(request.resource.data.schoolId);
+      allow update: if resource.data.schoolId == request.resource.data.schoolId
+        && isSchoolAdmin(resource.data.schoolId);
+      allow delete: if isSchoolAdmin(resource.data.schoolId);
+      allow create, update, delete: if isSuperAdmin() || isLegacyAdmin();
+    }
+
+    match /schoolUsers/{schoolUserId} {
+      // School user role records are the authorization source for school-level
+      // admins and staff. School admins can manage their own school's records.
+      allow get: if isSuperAdmin()
+        || isLegacyAdmin()
+        || (request.auth != null && resource.data.uid == request.auth.uid);
+      allow list: if isSuperAdmin()
+        || isLegacyAdmin()
+        || (request.auth != null && resource.data.uid == request.auth.uid);
+      allow create: if isSuperAdmin()
+        || isLegacyAdmin()
+        || isSchoolAdmin(request.resource.data.schoolId);
+      allow update: if isSuperAdmin()
+        || isLegacyAdmin()
+        || (
+          request.resource.data.schoolId == resource.data.schoolId
+          && isSchoolAdmin(resource.data.schoolId)
+        );
+      allow delete: if isSuperAdmin()
+        || isLegacyAdmin()
+        || isSchoolAdmin(resource.data.schoolId);
     }
 
     match /teachingAssignments/{teachingAssignmentId} {
@@ -29,9 +102,15 @@ service cloud.firestore {
       // parent flow loads them through a limited query after the student and
       // event have already been resolved. Firestore rules cannot verify the
       // exact join logic, so the query limit is the practical guardrail here.
-      allow list: if isAdmin() || isReasonableLimitedQuery(100);
-      allow get: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow get, list: if isSuperAdmin()
+        || isLegacyAdmin()
+        || isSchoolMember(resource.data.schoolId)
+        || isReasonableLimitedQuery(100);
+      allow create: if isSchoolAdmin(request.resource.data.schoolId);
+      allow update: if resource.data.schoolId == request.resource.data.schoolId
+        && isSchoolAdmin(resource.data.schoolId);
+      allow delete: if isSchoolAdmin(resource.data.schoolId);
+      allow create, update, delete: if isSuperAdmin() || isLegacyAdmin();
     }
 
     match /events/{eventId} {
@@ -39,8 +118,15 @@ service cloud.firestore {
       // meetingCode and active/draft status. Firestore rules are not filters:
       // the client query must constrain results so every returned document
       // satisfies this rule.
-      allow get, list: if isAdmin() || isActiveParentEvent();
-      allow create, update, delete: if isAdmin();
+      allow get, list: if isSuperAdmin()
+        || isLegacyAdmin()
+        || isSchoolMember(resource.data.schoolId)
+        || isActiveParentEvent();
+      allow create: if isSchoolAdmin(request.resource.data.schoolId);
+      allow update: if resource.data.schoolId == request.resource.data.schoolId
+        && isSchoolAdmin(resource.data.schoolId);
+      allow delete: if isSchoolAdmin(resource.data.schoolId);
+      allow create, update, delete: if isSuperAdmin() || isLegacyAdmin();
     }
 
     match /students/{studentId} {
@@ -53,9 +139,18 @@ service cloud.firestore {
       // event-scoped validation in application code. The limit requirement
       // reduces accidental broad reads but is not a complete anti-enumeration
       // control.
-      allow list: if isAdmin() || isReasonableLimitedQuery(1);
-      allow get: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow get: if isSuperAdmin()
+        || isLegacyAdmin()
+        || isSchoolMember(resource.data.schoolId);
+      allow list: if isSuperAdmin()
+        || isLegacyAdmin()
+        || isSchoolMember(resource.data.schoolId)
+        || isReasonableLimitedQuery(1);
+      allow create: if isSchoolAdmin(request.resource.data.schoolId);
+      allow update: if resource.data.schoolId == request.resource.data.schoolId
+        && isSchoolAdmin(resource.data.schoolId);
+      allow delete: if isSchoolAdmin(resource.data.schoolId);
+      allow create, update, delete: if isSuperAdmin() || isLegacyAdmin();
 
       // Future hardening should replace this with a lookup-token, callable
       // function, App Check, or deterministic event-scoped lookup document.
@@ -64,17 +159,25 @@ service cloud.firestore {
     match /classes/{classId} {
       // Required after a valid student lookup to display class and grade.
       // Keep class documents limited to non-sensitive metadata.
-      allow get: if true;
-      allow list: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow get: if true || isSchoolMember(resource.data.schoolId);
+      allow list: if isSuperAdmin() || isLegacyAdmin() || isSchoolMember(resource.data.schoolId);
+      allow create: if isSchoolAdmin(request.resource.data.schoolId);
+      allow update: if resource.data.schoolId == request.resource.data.schoolId
+        && isSchoolAdmin(resource.data.schoolId);
+      allow delete: if isSchoolAdmin(resource.data.schoolId);
+      allow create, update, delete: if isSuperAdmin() || isLegacyAdmin();
     }
 
     match /teachers/{teacherId} {
       // Required to render teacher cards and optional class teacher. Teacher
       // documents must not contain private staff data in this public v1 flow.
-      allow get: if true;
-      allow list: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow get: if true || isSchoolMember(resource.data.schoolId);
+      allow list: if isSuperAdmin() || isLegacyAdmin() || isSchoolMember(resource.data.schoolId);
+      allow create: if isSchoolAdmin(request.resource.data.schoolId);
+      allow update: if resource.data.schoolId == request.resource.data.schoolId
+        && isSchoolAdmin(resource.data.schoolId);
+      allow delete: if isSchoolAdmin(resource.data.schoolId);
+      allow create, update, delete: if isSuperAdmin() || isLegacyAdmin();
     }
 
     match /eventTeacherSetups/{eventTeacherSetupId} {
@@ -82,9 +185,15 @@ service cloud.firestore {
       // a limited query after the event is resolved. The query limit is the
       // practical guardrail because Firestore rules cannot verify the exact
       // where clauses used by the repository join.
-      allow list: if isAdmin() || isReasonableLimitedQuery(100);
-      allow get: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow get, list: if isSuperAdmin()
+        || isLegacyAdmin()
+        || isSchoolMember(resource.data.schoolId)
+        || isReasonableLimitedQuery(100);
+      allow create: if isSchoolAdmin(request.resource.data.schoolId);
+      allow update: if resource.data.schoolId == request.resource.data.schoolId
+        && isSchoolAdmin(resource.data.schoolId);
+      allow delete: if isSchoolAdmin(resource.data.schoolId);
+      allow create, update, delete: if isSuperAdmin() || isLegacyAdmin();
     }
 
     match /{document=**} {

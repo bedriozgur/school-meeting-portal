@@ -23,11 +23,16 @@ The application repository layer performs the complete event-scoped validation.
 - `students`: public list only with `limit <= 1`, supporting student-number lookup. Direct document get is denied.
 - `classes`: public get only, needed after a valid student lookup to show class and grade.
 - `teachers`: public get only, needed to show teacher cards and class teacher names.
-- `teachingAssignments`: public list only with `limit <= 100` for the parent flow's class-teacher-subject join, including default-subject rows and subject overrides, plus admin writes.
-- `eventTeacherSetups`: public list only with `limit <= 100` for the parent flow's event-specific location join, plus admin writes.
+- `teachingAssignments`: public list only with `limit <= 100` for the parent flow's class-teacher-subject join, including default-subject rows and subject overrides. School admins and staff can also read their own school's records.
+- `eventTeacherSetups`: public list only with `limit <= 100` for the parent flow's event-specific location join. School admins and staff can also read their own school's records.
 - `schools`: public get only, needed to show school context.
+- `schoolUsers`: not publicly readable; school admins can manage their own school's role records and users can read their own role records.
 
-All public writes are denied. Admin writes require an authenticated ID token with `admin: true`.
+All public writes are denied. Managed writes require one of:
+
+- `superAdmin: true`
+- legacy `admin: true`
+- a matching active `schoolUsers` role document for the target school
 
 ## Firestore Rules Limitations
 
@@ -53,12 +58,12 @@ The current rules reduce accidental broad reads by denying direct student and as
 
 When admin and staff auth is added:
 
-- Write access should require custom claims such as `admin` or `staff`.
-- Staff writes should be constrained to their school and role.
-- Admin UI should manage events, included classes, assignments, and teacher records.
+- Write access should continue to respect `superAdmin`, legacy `admin`, and school role documents.
+- Staff reads should remain scoped to their school and limited support flows.
+- Admin UI should manage events, included classes, assignments, teacher records, and school users.
 - Security rules should validate ownership fields like `schoolId`.
 
-The current rules allow admin-managed collection reads and writes for users with `admin: true`. Staff-specific claims are not implemented yet.
+The current rules allow platform admins, legacy pilot admins, and school-scoped role records to access managed collections according to `firestore.rules`.
 
 ## Recommended Future Hardening
 

@@ -19,10 +19,14 @@ import { requireFirestore } from "./firestoreLookups";
 import type { FirestoreTeacherDocument } from "./firestoreTypes";
 
 export const firestoreTeacherRepository: TeacherRepository = {
-  async listTeachers() {
+  async listTeachers(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
     const snapshot = await getDocs(
-      query(collection(db, "teachers"), orderBy("fullName", "asc")),
+      query(
+        collection(db, "teachers"),
+        where("schoolId", "==", schoolId),
+        orderBy("fullName", "asc"),
+      ),
     );
 
     return snapshot.docs.map((teacherDocument) =>
@@ -32,10 +36,10 @@ export const firestoreTeacherRepository: TeacherRepository = {
       ),
     ) satisfies Teacher[];
   },
-  async countTeachers() {
+  async countTeachers(schoolId = DEFAULT_SCHOOL_ID) {
     const db = requireFirestore();
     const snapshot = await getCountFromServer(
-      query(collection(db, "teachers"), where("schoolId", "==", DEFAULT_SCHOOL_ID)),
+      query(collection(db, "teachers"), where("schoolId", "==", schoolId)),
     );
 
     return snapshot.data().count;

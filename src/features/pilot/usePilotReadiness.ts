@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../auth/useAuth";
+import { DEFAULT_SCHOOL_ID } from "../../config/school";
 import type { EventReadiness, MeetingEvent } from "../../domain/models";
 import { dataSource, repositories } from "../../repositories";
 import { getFirebaseApp, missingFirebaseEnvKeys } from "../../lib/firebase";
@@ -36,8 +37,11 @@ type PilotReadinessState<T> = {
   data: T | null;
 };
 
-export function usePilotReadinessSummary() {
-  const { hasAdminClaim, isAllowlistedAdmin } = useAuth();
+export function usePilotReadinessSummary(
+  schoolId = DEFAULT_SCHOOL_ID,
+  enabled = true,
+) {
+  const { hasAdminClaim, isAllowlistedAdmin, isSuperAdmin } = useAuth();
   const loadIdRef = useRef(0);
   const [state, setState] = useState<PilotReadinessState<PilotReadinessSummaryData>>({
     status: "loading",
@@ -49,15 +53,20 @@ export function usePilotReadinessSummary() {
     const loadId = ++loadIdRef.current;
     const logger = createPilotReadinessLogger("summary", loadId);
 
-    logger.step("load started");
+    logger.step("load started", { schoolId, enabled });
     setState({ status: "loading", data: null });
 
+    if (!enabled) {
+      logger.step("load deferred", { schoolId });
+      return undefined;
+    }
+
     Promise.all([
-      repositories.meetingRepository.listEvents(),
-      repositories.teacherRepository.countTeachers(),
-      repositories.classRepository.countClasses(),
-      repositories.studentRepository.countStudents(),
-      repositories.teachingAssignmentRepository.countTeachingAssignments(),
+      repositories.meetingRepository.listEvents(schoolId),
+      repositories.teacherRepository.countTeachers(schoolId),
+      repositories.classRepository.countClasses(schoolId),
+      repositories.studentRepository.countStudents(schoolId),
+      repositories.teachingAssignmentRepository.countTeachingAssignments(schoolId),
     ])
       .then(([events, teachersCount, classesCount, studentsCount, assignmentsCount]) => {
         if (!isCurrent) {
@@ -89,7 +98,7 @@ export function usePilotReadinessSummary() {
             studentsCount,
             assignmentsCount,
             staffPortalConfigured: isStaffPortalConfigured(),
-            adminAuthConfigured: isAllowlistedAdmin || hasAdminClaim,
+            adminAuthConfigured: isAllowlistedAdmin || hasAdminClaim || isSuperAdmin,
           },
         });
 
@@ -110,7 +119,7 @@ export function usePilotReadinessSummary() {
     return () => {
       isCurrent = false;
     };
-  }, [hasAdminClaim, isAllowlistedAdmin]);
+  }, [enabled, hasAdminClaim, isAllowlistedAdmin, isSuperAdmin, schoolId]);
 
   return useMemo(
     () => ({
@@ -121,8 +130,11 @@ export function usePilotReadinessSummary() {
   );
 }
 
-export function usePilotReadiness() {
-  const { hasAdminClaim, isAllowlistedAdmin } = useAuth();
+export function usePilotReadiness(
+  schoolId = DEFAULT_SCHOOL_ID,
+  enabled = true,
+) {
+  const { hasAdminClaim, isAllowlistedAdmin, isSuperAdmin } = useAuth();
   const loadIdRef = useRef(0);
   const [state, setState] = useState<PilotReadinessState<PilotReadinessData>>({
     status: "loading",
@@ -134,15 +146,20 @@ export function usePilotReadiness() {
     const loadId = ++loadIdRef.current;
     const logger = createPilotReadinessLogger("checklist", loadId);
 
-    logger.step("load started");
+    logger.step("load started", { schoolId, enabled });
     setState({ status: "loading", data: null });
 
+    if (!enabled) {
+      logger.step("load deferred", { schoolId });
+      return undefined;
+    }
+
     Promise.all([
-      repositories.meetingRepository.listEvents(),
-      repositories.teacherRepository.countTeachers(),
-      repositories.classRepository.countClasses(),
-      repositories.studentRepository.countStudents(),
-      repositories.teachingAssignmentRepository.countTeachingAssignments(),
+      repositories.meetingRepository.listEvents(schoolId),
+      repositories.teacherRepository.countTeachers(schoolId),
+      repositories.classRepository.countClasses(schoolId),
+      repositories.studentRepository.countStudents(schoolId),
+      repositories.teachingAssignmentRepository.countTeachingAssignments(schoolId),
     ])
       .then(async ([events, teachersCount, classesCount, studentsCount, assignmentsCount]) => {
         const activeEvents = events.filter((event) => event.status === "active");
@@ -200,7 +217,7 @@ export function usePilotReadiness() {
             studentsCount,
             assignmentsCount,
             staffPortalConfigured: isStaffPortalConfigured(),
-            adminAuthConfigured: isAllowlistedAdmin || hasAdminClaim,
+            adminAuthConfigured: isAllowlistedAdmin || hasAdminClaim || isSuperAdmin,
             activeDraftReadiness,
           },
         });
@@ -217,7 +234,7 @@ export function usePilotReadiness() {
     return () => {
       isCurrent = false;
     };
-  }, [hasAdminClaim, isAllowlistedAdmin]);
+  }, [enabled, hasAdminClaim, isAllowlistedAdmin, isSuperAdmin, schoolId]);
 
   return useMemo(
     () => ({

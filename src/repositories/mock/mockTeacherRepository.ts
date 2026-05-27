@@ -1,12 +1,13 @@
 import type { TeacherRepository } from "../interfaces";
+import { DEFAULT_SCHOOL_ID } from "../../config/school";
 import { mockTeachers } from "./mockData";
 
 export const mockTeacherRepository: TeacherRepository = {
-  async listTeachers() {
-    return mockTeachers;
+  async listTeachers(schoolId = DEFAULT_SCHOOL_ID) {
+    return mockTeachers.filter((teacher) => teacher.schoolId === schoolId);
   },
-  async countTeachers() {
-    return mockTeachers.length;
+  async countTeachers(schoolId = DEFAULT_SCHOOL_ID) {
+    return mockTeachers.filter((teacher) => teacher.schoolId === schoolId).length;
   },
   async getTeacherById(teacherId) {
     return mockTeachers.find((teacher) => teacher.id === teacherId) ?? null;

@@ -6,6 +6,27 @@ export type School = {
   logoInitials: string;
 };
 
+export type SchoolUserRole = "schoolAdmin" | "staff";
+
+export type SchoolUser = {
+  id: string;
+  schoolId: string;
+  uid: string;
+  email: string;
+  role: SchoolUserRole;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type SchoolUserFormInput = {
+  schoolId: string;
+  uid: string;
+  email: string;
+  role: SchoolUserRole;
+  isActive: boolean;
+};
+
 export type MeetingEvent = {
   id: string;
   schoolId: string;

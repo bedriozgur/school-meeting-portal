@@ -88,7 +88,7 @@ Firebase client setup lives in `src/lib/firebase`:
 
 ## Admin Authentication
 
-The admin foundation uses Firebase Auth with Google sign-in. It supports both temporary email allowlist access and Firebase custom-claim admin access. It does not include admin CRUD or staff portal behavior yet.
+The admin foundation uses Firebase Auth with Google sign-in and email/password sign-in. Authentication is separate from authorization. Access can come from a temporary email allowlist, a legacy `admin: true` claim, a platform-wide `superAdmin: true` claim, or school role records in Firestore. It does not include full multi-school CRUD yet.
 
 Configure admin access in `.env.local`:
 
@@ -96,17 +96,29 @@ Configure admin access in `.env.local`:
 VITE_ADMIN_EMAILS=admin@example.com,second-admin@example.com
 ```
 
-Signed-in Google users can access `/admin` when either:
+Signed-in admin users can access `/admin` when either:
 
 - their email appears in `VITE_ADMIN_EMAILS`
 - their Firebase ID token has custom claim `admin: true`
+- their Firebase ID token has custom claim `superAdmin: true`
+- they have a `schoolUsers` role record for the selected school
 
-Firestore admin writes require the custom claim. `VITE_ADMIN_EMAILS` is UI-only and is not sufficient for Firestore writes.
+The admin header shows the current school. Super admins and legacy admins can switch the selected school from the admin shell; the dashboard, pilot checklist, and list views use that selection where practical. The default-school pilot behavior remains the fallback when no selection is present.
+
+`VITE_ADMIN_EMAILS` is UI-only and is not sufficient for Firestore writes.
+Firestore writes depend on authorization:
+
+- `superAdmin: true` can access all managed collections
+- legacy `admin: true` remains supported for the pilot
+- school-scoped records in `schoolUsers` control access to the current school
+
+The admin shell can read and update the selected school's role records at `/admin/school-users`.
 
 Admin routes:
 
 - `/admin/login`
 - `/admin`
+- `/admin/school-users`
 
 Firebase setup notes:
 
@@ -121,7 +133,7 @@ Admin auth documentation:
 
 ### Setting an admin custom claim locally
 
-Use the local utility script to set `admin: true` on a Firebase Auth user:
+Use the local utility script to set the legacy `admin: true` claim on a Firebase Auth user:
 
 ```bash
 node scripts/set-admin-claim.cjs user@example.com
@@ -150,13 +162,13 @@ To enable it:
 1. In Firebase Console, open Authentication > Sign-in method.
 2. Enable the Email/Password provider.
 3. Create the admin user manually in Authentication > Users.
-4. Set the user's admin custom claim with the local script above so Firestore writes still work.
+4. Set the user's legacy admin custom claim with the local script above if you want that account to keep pilot/global admin access.
 
 Important:
 
 - `VITE_ADMIN_EMAILS` is still UI-only allowlist access.
 - `VITE_ADMIN_EMAILS` does not grant Firestore write access.
-- Firestore admin writes still require the `admin: true` custom claim.
+- Firestore writes still require the right authorization path. For legacy pilot access, that is `admin: true`; for school-scoped access, it is the appropriate `schoolUsers` role record; for platform admins, it is `superAdmin: true`.
 
 ## Admin Shell Status
 
@@ -269,7 +281,7 @@ Assignment data is handled through dedicated repositories:
 - `AssignmentRepository.updateEventAssignment(assignmentId, input)`
 - `AssignmentRepository.deleteEventAssignment(assignmentId)`
 
-Mock mode writes teaching assignments and event teacher setups in memory. Firestore mode writes to `teachingAssignments` and `eventTeacherSetups`, preserving `schoolId`, and sets `createdAt`/`updatedAt` timestamps. Firestore rules require `admin: true` for these writes.
+Mock mode writes teaching assignments and event teacher setups in memory. Firestore mode writes to `teachingAssignments` and `eventTeacherSetups`, preserving `schoolId`, and sets `createdAt`/`updatedAt` timestamps. Firestore rules require either `superAdmin: true`, legacy `admin: true`, or an active matching `schoolUsers` school-admin role for these writes.
 
 Teacher, class, and student master data support minimal create/edit CRUD. Teacher forms manage full name, default subject, and active status. Class forms manage class name, grade, optional class teacher, and active status. Student forms manage school number, full name, required class, and active status. Firestore mode reads/writes `teachers`, `classes`, and `students`; mock mode uses the existing mocked records plus in-memory creates and updates. Active status defaults to active when existing documents do not define `isActive`.
 
@@ -279,7 +291,7 @@ Teacher writes use:
 - `TeacherRepository.createTeacher(input)`
 - `TeacherRepository.updateTeacher(teacherId, input)`
 
-Firestore teacher creates include `schoolId`, `createdAt`, and `updatedAt`; updates set `updatedAt`. Existing Firestore rules require `admin: true` for teacher writes.
+Firestore teacher creates include `schoolId`, `createdAt`, and `updatedAt`; updates set `updatedAt`. Existing Firestore rules allow platform admins, legacy admins, and matching school admins to write teacher records.
 
 Class writes use:
 
@@ -287,7 +299,7 @@ Class writes use:
 - `ClassRepository.createClass(input)`
 - `ClassRepository.updateClass(classId, input)`
 
-Firestore class creates include `schoolId`, nullable `classTeacherId`, `createdAt`, and `updatedAt`; updates set nullable `classTeacherId` and `updatedAt`. Existing Firestore rules require `admin: true` for class writes.
+Firestore class creates include `schoolId`, nullable `classTeacherId`, `createdAt`, and `updatedAt`; updates set nullable `classTeacherId` and `updatedAt`. Existing Firestore rules allow platform admins, legacy admins, and matching school admins to write class records.
 
 Student writes use:
 
@@ -295,7 +307,7 @@ Student writes use:
 - `StudentRepository.createStudent(input)`
 - `StudentRepository.updateStudent(studentId, input)`
 
-Student school numbers are validated as unique within the configured school. Edits allow the current student to keep the same school number. Firestore student creates include `schoolId`, `classId`, `createdAt`, and `updatedAt`; updates set `classId` and `updatedAt`. Existing Firestore rules require `admin: true` for student writes.
+Student school numbers are validated as unique within the configured school. Edits allow the current student to keep the same school number. Firestore student creates include `schoolId`, `classId`, `createdAt`, and `updatedAt`; updates set `classId` and `updatedAt`. Existing Firestore rules allow platform admins, legacy admins, and matching school admins to write student records.
 
 Teacher, class, and student imports share reusable parsing, upload, validation summary, message, preview, and confirmation components under `src/features/imports/`. Each import keeps its own row validation and repository mapping in the admin import route so future assignment import can reuse the same flow without changing existing behavior.
 
@@ -390,7 +402,7 @@ The QR page also supports bulk meeting-code print/export. Admins can select one 
 
 The event detail page shows event metadata, parent meeting URL target, preview link target, QR target text, and a read-only teacher assignment overview. The parent preview action links to the existing `/meeting/:meetingCode` route and does not enable a separate preview mode yet.
 
-In mock mode, the admin event list includes draft, active, old, and archived examples. In Firestore mode, all event statuses are available to authenticated users with the `admin: true` custom claim.
+In mock mode, the admin event list includes draft, active, old, and archived examples. In Firestore mode, all event statuses are available to authenticated users with the appropriate admin or school-scoped authorization.
 
 Event lifecycle status management is the first admin write flow. Valid transitions are:
 
@@ -401,7 +413,7 @@ Event lifecycle status management is the first admin write flow. Valid transitio
 - old to archived
 - archived to draft
 
-The UI shows only valid lifecycle actions for the current event status and asks for confirmation before running an action. Mock mode simulates the transition in memory. Firestore mode updates `events/{eventId}.status` and `updatedAt`; Firestore rules require `admin: true` for that write.
+The UI shows only valid lifecycle actions for the current event status and asks for confirmation before running an action. Mock mode simulates the transition in memory. Firestore mode updates `events/{eventId}.status` and `updatedAt`; Firestore rules allow the transition for platform admins, legacy admins, and matching school admins.
 
 Draft event activation now has readiness guardrails. Before `draft` can move to `active`, the repository validates that:
 
