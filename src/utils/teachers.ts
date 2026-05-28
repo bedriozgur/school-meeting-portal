@@ -35,13 +35,18 @@ export function sortTeacherAssignments(
 export function sortTeacherAssignmentsWithCompletion(
   assignments: TeacherAssignment[],
   teacherState: Record<string, { visited?: boolean } | undefined>,
+  recentlyCompletedIds: Set<string> = new Set(),
 ) {
   return [...assignments].sort((left, right) => {
     const leftCompleted = teacherState[left.id]?.visited ?? false;
     const rightCompleted = teacherState[right.id]?.visited ?? false;
+    const leftSettling = leftCompleted && recentlyCompletedIds.has(left.id);
+    const rightSettling = rightCompleted && recentlyCompletedIds.has(right.id);
+    const leftGroup = getCompletionGroup(left, leftCompleted, leftSettling);
+    const rightGroup = getCompletionGroup(right, rightCompleted, rightSettling);
 
-    if (leftCompleted !== rightCompleted) {
-      return leftCompleted ? 1 : -1;
+    if (leftGroup !== rightGroup) {
+      return leftGroup - rightGroup;
     }
 
     const building = left.building.localeCompare(right.building, "tr");
@@ -70,4 +75,24 @@ export function sortTeacherAssignmentsWithCompletion(
 
     return left.id.localeCompare(right.id, "tr");
   });
+}
+
+function getCompletionGroup(
+  assignment: TeacherAssignment,
+  completed: boolean,
+  settling: boolean,
+) {
+  if (settling) {
+    return isUnavailable(assignment) ? 1 : 0;
+  }
+
+  if (completed) {
+    return 2;
+  }
+
+  return isUnavailable(assignment) ? 1 : 0;
+}
+
+function isUnavailable(assignment: TeacherAssignment) {
+  return assignment.availability !== "available";
 }

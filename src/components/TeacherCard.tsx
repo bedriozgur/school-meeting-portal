@@ -2,12 +2,6 @@ import type { TeacherAssignment } from "../domain/models";
 import { useT } from "../hooks/useT";
 import { useSessionStore } from "../store/sessionStore";
 
-const availabilityKeys = {
-  available: "dashboard.available",
-  busy: "dashboard.busy",
-  limited: "dashboard.limited",
-} as const;
-
 const availabilityClasses = {
   available: "status-success",
   busy: "status-danger",
@@ -29,6 +23,7 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
   const setTeacherVisited = useSessionStore((store) => store.setTeacherVisited);
   const setTeacherNotes = useSessionStore((store) => store.setTeacherNotes);
   const completed = visited;
+  const floorLabel = formatFloor(assignment.floor);
 
   return (
     <article
@@ -46,20 +41,28 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-strong text-xl font-extrabold">
+          <div className="min-w-0">
+            <h3 className="text-strong truncate text-lg font-extrabold sm:text-xl">
               {assignment.teacher.name}
+              <span className="mx-2 text-[color:var(--color-muted-text)]">—</span>
+              <span className="text-strong">{assignment.subject || t("admin.masterDataMissingValue")}</span>
             </h3>
-            <p className="copy mt-1 text-base font-bold">
-              {assignment.subject || t("admin.masterDataMissingValue")}
+            <p className="copy mt-2 text-sm font-semibold sm:text-base">
+              {assignment.building || t("admin.masterDataMissingValue")}
+              {" · "}
+              {floorLabel}
+              {" · "}
+              {assignment.classroom || t("admin.masterDataMissingValue")}
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-extrabold ${availabilityClasses[assignment.availability]}`}
-            >
-              {t(availabilityKeys[assignment.availability])}
-            </span>
+            {assignment.availability === "available" ? null : (
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-extrabold ${availabilityClasses[assignment.availability]}`}
+              >
+                {t("dashboard.unavailable")}
+              </span>
+            )}
             {completed ? (
               <span className="status-success rounded-full px-3 py-1 text-xs font-extrabold">
                 {t("dashboard.completed")}
@@ -67,27 +70,6 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
             ) : null}
           </div>
         </div>
-
-        <dl className="grid grid-cols-3 gap-2 text-sm">
-          <div className="soft-panel rounded-2xl p-3">
-            <dt className="copy font-extrabold">
-              {t("dashboard.building")}
-            </dt>
-            <dd className="mt-1 text-lg font-black">{assignment.building}</dd>
-          </div>
-          <div className="soft-panel rounded-2xl p-3">
-            <dt className="copy font-extrabold">
-              {t("dashboard.floor")}
-            </dt>
-            <dd className="mt-1 text-lg font-black">{assignment.floor}</dd>
-          </div>
-          <div className="soft-panel rounded-2xl p-3">
-            <dt className="copy font-extrabold">
-              {t("dashboard.classroom")}
-            </dt>
-            <dd className="mt-1 text-lg font-black">{assignment.classroom}</dd>
-          </div>
-        </dl>
 
         {assignment.locationMissing ? (
           <p className="status-warning rounded-2xl px-4 py-3 text-sm font-bold">
@@ -104,7 +86,7 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
         <label className="flex min-h-12 items-center gap-3 rounded-2xl border bg-white px-4 py-3 text-base font-extrabold [border-color:var(--color-border)]">
           <input
             checked={visited}
-            className="h-6 w-6 [accent-color:var(--color-primary)]"
+            className="h-5 w-5 shrink-0 [accent-color:var(--color-primary)]"
             onChange={(event) =>
               setTeacherVisited(assignment.id, event.target.checked)
             }
@@ -116,7 +98,7 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
         <label className="block">
           <span className="label">{t("dashboard.notes")}</span>
           <textarea
-            className="input mt-2 min-h-28 resize-y"
+            className="input mt-2 min-h-20 resize-y text-sm"
             onChange={(event) =>
               setTeacherNotes(assignment.id, event.target.value)
             }
@@ -127,4 +109,16 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
       </div>
     </article>
   );
+}
+
+function formatFloor(floor: number) {
+  if (floor === 0) {
+    return "Zemin Kat";
+  }
+
+  if (floor === 1) {
+    return "Kat 1";
+  }
+
+  return `Kat ${floor}`;
 }

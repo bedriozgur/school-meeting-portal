@@ -85,6 +85,8 @@
   "dashboard.shareSave": "Paylaş / Notları Kaydet",
   "dashboard.emailSelf": "Kendime E-posta Gönder",
   "dashboard.completed": "Tamamlandı",
+  "dashboard.unavailable": "Uygun değil",
+  "dashboard.startOver": "Baştan başla",
   "dashboard.resetSession": "Oturumu sıfırla",
   "dashboard.changeStudent": "Öğrenci değiştir",
   "dashboard.changeMeeting": "Toplantı değiştir",

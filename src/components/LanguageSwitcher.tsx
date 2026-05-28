@@ -29,7 +29,7 @@ export function LanguageSwitcher({
         <button
           className={`rounded-full transition ${
             compact
-              ? "px-2 py-1 text-[10px] font-bold"
+              ? "min-w-10 px-2 py-1 text-[10px] font-black tracking-[0.14em]"
               : "px-3 py-2 text-sm font-extrabold"
           } ${
             activeLanguage === language
@@ -45,7 +45,7 @@ export function LanguageSwitcher({
           onClick={() => setLanguage(language)}
           type="button"
         >
-          {t(languageLabels[language])}
+          {compact ? (language === "tr" ? "TR" : "EN") : t(languageLabels[language])}
         </button>
       ))}
     </div>

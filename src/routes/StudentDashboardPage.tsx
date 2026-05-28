@@ -1,13 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { SchoolHeader } from "../components/SchoolHeader";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { TeacherCard } from "../components/TeacherCard";
+import { VersionBadge } from "../components/VersionBadge";
 import type { ParentMeetingView } from "../domain/models";
 import { useT } from "../hooks/useT";
 import { repositories } from "../repositories";
 import { useSessionStore } from "../store/sessionStore";
+import { useSchoolBranding } from "../theme/useSchoolBranding";
 import { buildNotesSummary } from "../utils/share";
 import { sortTeacherAssignmentsWithCompletion } from "../utils/teachers";
+
+// Parent-facing pages should stay compact, task-oriented queues; avoid large decorative cards.
+type TeacherProgressState = { visited?: boolean };
 
 type DashboardStatus = "loading" | "success" | "error";
 
@@ -16,24 +21,76 @@ export function StudentDashboardPage() {
   const decodedMeetingCode = decodeURIComponent(meetingCode);
   const decodedSchoolNumber = decodeURIComponent(schoolNumber);
   const { language, t } = useT();
+  const branding = useSchoolBranding();
   const navigate = useNavigate();
   const [shareMessage, setShareMessage] = useState("");
   const setMeetingCode = useSessionStore((state) => state.setMeetingCode);
   const setSchoolNumber = useSessionStore((state) => state.setSchoolNumber);
-  const resetSession = useSessionStore((state) => state.resetSession);
   const resetStudent = useSessionStore((state) => state.resetStudent);
-  const resetMeeting = useSessionStore((state) => state.resetMeeting);
   const teacherState = useSessionStore((state) => state.teacherState);
   const [status, setStatus] = useState<DashboardStatus>("loading");
   const [parentMeetingView, setParentMeetingView] =
     useState<ParentMeetingView | null>(null);
+  const [recentlyCompletedIds, setRecentlyCompletedIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const previousVisitedRef = useRef<Record<string, TeacherProgressState>>({});
+
+  useEffect(() => {
+    const previousVisited = previousVisitedRef.current;
+    const nextVisited = teacherState as Record<string, TeacherProgressState>;
+    const newlyCompleted = Object.entries(nextVisited)
+      .filter(
+        ([teacherId, state]) => state?.visited && !previousVisited[teacherId]?.visited,
+      )
+      .map(([teacherId]) => teacherId);
+
+    const noLongerCompleted = [...recentlyCompletedIds].filter(
+      (teacherId) => !nextVisited[teacherId]?.visited,
+    );
+
+    if (newlyCompleted.length === 0 && noLongerCompleted.length === 0) {
+      previousVisitedRef.current = nextVisited;
+      return;
+    }
+
+    if (newlyCompleted.length > 0) {
+      setRecentlyCompletedIds((current) => {
+        const next = new Set(current);
+        newlyCompleted.forEach((teacherId) => next.add(teacherId));
+        return next;
+      });
+    }
+
+    if (noLongerCompleted.length > 0) {
+      setRecentlyCompletedIds((current) => {
+        const next = new Set(current);
+        noLongerCompleted.forEach((teacherId) => next.delete(teacherId));
+        return next;
+      });
+    }
+
+    const timer = window.setTimeout(() => {
+      setRecentlyCompletedIds((current) => {
+        const next = new Set(current);
+        newlyCompleted.forEach((teacherId) => next.delete(teacherId));
+        return next;
+      });
+    }, 350);
+
+    previousVisitedRef.current = nextVisited;
+
+    return () => window.clearTimeout(timer);
+  }, [recentlyCompletedIds, teacherState]);
+
   const teacherAssignments = useMemo(
     () =>
       sortTeacherAssignmentsWithCompletion(
         parentMeetingView?.teacherAssignments ?? [],
         teacherState,
+        recentlyCompletedIds,
       ),
-    [parentMeetingView?.teacherAssignments, teacherState],
+    [parentMeetingView?.teacherAssignments, recentlyCompletedIds, teacherState],
   );
 
   useEffect(() => {
@@ -84,7 +141,7 @@ export function StudentDashboardPage() {
       })
     : "";
 
-  async function handleShare() {
+  function handleShare() {
     setShareMessage("");
 
     if (!parentMeetingView) {
@@ -92,7 +149,7 @@ export function StudentDashboardPage() {
     }
 
     if (navigator.share) {
-      await navigator.share({
+      void navigator.share({
         title: t("dashboard.shareTitle"),
         text: summary,
       });
@@ -108,62 +165,59 @@ export function StudentDashboardPage() {
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }
 
-  function handleResetSession() {
-    resetSession();
-    navigate("/");
-  }
-
-  function handleChangeStudent() {
+  function handleStartOver() {
     resetStudent();
     navigate(`/meeting/${encodeURIComponent(decodedMeetingCode)}`);
   }
 
-  function handleChangeMeeting() {
-    resetMeeting();
-    navigate("/");
-  }
-
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <SchoolHeader />
-
-      <section className="surface p-5 sm:p-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="label">{decodedMeetingCode}</p>
-            <h1 className="heading mt-3 font-display text-4xl font-black sm:text-5xl">
-              {t("dashboard.title")}
-            </h1>
-            <p className="copy mt-3 max-w-2xl text-base font-semibold leading-7">
-              {t("dashboard.description")}
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:min-w-80 lg:grid-cols-1">
-            <button
-              className="btn-primary"
-              disabled={!parentMeetingView}
-              onClick={handleShare}
-              type="button"
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 pb-3 sm:gap-5">
+      <header className="flex items-start justify-between gap-3 pt-1">
+        <div className="flex min-w-0 items-center gap-3">
+          {branding.logoUrl ? (
+            <img
+              alt={t("app.logoAlt")}
+              className="h-12 w-12 shrink-0 rounded-2xl border border-[color:var(--color-border)] bg-white object-contain p-1.5 shadow-soft sm:h-14 sm:w-14"
+              src={branding.logoUrl}
+            />
+          ) : (
+            <div
+              aria-label={t("app.logoAlt")}
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[color:var(--color-border)] text-sm font-black text-white shadow-soft sm:h-14 sm:w-14 sm:text-base"
+              style={{ background: "var(--color-primary)" }}
             >
-              {t("dashboard.shareSave")}
-            </button>
-            <button
-              className="btn-secondary"
-              disabled={!parentMeetingView}
-              onClick={handleEmail}
-              type="button"
-            >
-              {t("dashboard.emailSelf")}
-            </button>
-          </div>
+              {t(branding.logoInitials)}
+            </div>
+          )}
         </div>
+        <LanguageSwitcher compact className="shrink-0" />
+      </header>
 
-        {shareMessage ? (
-          <p className="status-warning mt-4 rounded-2xl px-4 py-3 text-sm font-bold">
-            {shareMessage}
+      <section className="surface px-4 py-4 sm:px-5 sm:py-5">
+        <div className="space-y-2 text-left">
+          <p className="text-strong text-xl font-black tracking-tight sm:text-2xl">
+            {t(branding.schoolName)}
           </p>
-        ) : null}
+          <p className="label text-[10px] tracking-[0.28em]">
+            {decodedMeetingCode}
+          </p>
+          <p className="text-strong text-base font-bold sm:text-lg">
+            {parentMeetingView
+              ? `${parentMeetingView.student.name} · ${parentMeetingView.student.className}`
+              : t("dashboard.unknownStudent")}
+          </p>
+          <p className="copy text-sm font-semibold sm:text-base">
+            {t("dashboard.classTeacher")}:{" "}
+            {parentMeetingView?.classTeacher?.name ?? t("dashboard.unknownClass")}
+          </p>
+        </div>
       </section>
+
+      {shareMessage ? (
+        <p className="status-warning rounded-2xl px-4 py-3 text-sm font-bold">
+          {shareMessage}
+        </p>
+      ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <InfoCard
@@ -179,37 +233,20 @@ export function StudentDashboardPage() {
           value={parentMeetingView?.student.className ?? t("dashboard.unknownClass")}
         />
         <InfoCard
-          label={t("dashboard.grade")}
-          value={parentMeetingView?.student.grade ?? t("dashboard.unknownClass")}
-        />
-        <InfoCard
           label={t("dashboard.classTeacher")}
           value={
             parentMeetingView?.classTeacher?.name ?? t("dashboard.unknownClass")
           }
         />
-      </section>
-
-      <section className="surface p-4">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <button className="btn-secondary" onClick={handleResetSession} type="button">
-            {t("dashboard.resetSession")}
-          </button>
-          <button className="btn-secondary" onClick={handleChangeStudent} type="button">
-            {t("dashboard.changeStudent")}
-          </button>
-          <button className="btn-secondary" onClick={handleChangeMeeting} type="button">
-            {t("dashboard.changeMeeting")}
-          </button>
-        </div>
-        <p className="copy mt-3 text-center text-sm font-bold">
-          {t("dashboard.sessionHint")}
-        </p>
+        <InfoCard
+          label={t("meeting.title")}
+          value={decodedMeetingCode || t("dashboard.unknownClass")}
+        />
       </section>
 
       {status === "loading" ? (
-        <section className="surface p-6 text-center">
-          <p className="text-strong text-lg font-extrabold">
+        <section className="surface p-5 text-center sm:p-6">
+          <p className="text-strong text-base font-extrabold sm:text-lg">
             {t("dashboard.loading")}
           </p>
         </section>
@@ -217,13 +254,15 @@ export function StudentDashboardPage() {
 
       {status === "success" && parentMeetingView ? (
         <section>
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <h2 className="heading font-display text-3xl font-black">
-              {t("dashboard.teachers")}
-            </h2>
-            <p className="label">{teacherAssignments.length}</p>
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <div>
+              <p className="label">{t("dashboard.teachers")}</p>
+              <p className="copy mt-1 text-sm font-semibold">
+                {teacherAssignments.length}
+              </p>
+            </div>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-2">
             {teacherAssignments.map((assignment) => (
               <TeacherCard key={assignment.id} assignment={assignment} />
             ))}
@@ -232,27 +271,54 @@ export function StudentDashboardPage() {
       ) : null}
 
       {status === "error" ? (
-        <section className="surface p-6 text-center">
-          <p className="text-strong text-lg font-extrabold">
+        <section className="surface p-5 text-center sm:p-6">
+          <p className="text-strong text-base font-extrabold sm:text-lg">
             {t("dashboard.loadError")}
           </p>
-          <Link
-            className="btn-primary mt-4 w-full sm:w-auto"
-            to={`/meeting/${encodeURIComponent(decodedMeetingCode)}`}
-          >
-            {t("dashboard.changeStudent")}
-          </Link>
+          <button className="btn-primary mt-4 w-full sm:w-auto" onClick={handleStartOver} type="button">
+            {t("dashboard.startOver")}
+          </button>
         </section>
       ) : null}
+
+      <section className="surface px-4 py-4 sm:px-5 sm:py-5">
+        <div className="grid gap-2 sm:grid-cols-3">
+          <button className="btn-primary" onClick={handleStartOver} type="button">
+            {t("dashboard.startOver")}
+          </button>
+          <button
+            className="btn-secondary"
+            disabled={!parentMeetingView}
+            onClick={handleShare}
+            type="button"
+          >
+            {t("dashboard.shareSave")}
+          </button>
+          <button
+            className="btn-secondary"
+            disabled={!parentMeetingView}
+            onClick={handleEmail}
+            type="button"
+          >
+            {t("dashboard.emailSelf")}
+          </button>
+        </div>
+      </section>
+
+      <footer className="pb-1 text-center">
+        <VersionBadge compact />
+      </footer>
     </div>
   );
 }
 
 function InfoCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="surface p-4">
-      <p className="label">{label}</p>
-      <p className="text-strong mt-2 text-xl font-black">{value}</p>
+    <div className="surface px-4 py-3">
+      <p className="label text-[10px]">{label}</p>
+      <p className="text-strong mt-1 break-words text-base font-black leading-tight sm:text-lg">
+        {value}
+      </p>
     </div>
   );
 }

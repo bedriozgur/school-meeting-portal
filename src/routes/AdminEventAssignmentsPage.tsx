@@ -22,6 +22,7 @@ import { useAdminSchoolStore } from "../store/adminSchoolStore";
 type LoadStatus = "loading" | "success" | "error";
 type SaveStatus = "idle" | "saving" | "success" | "error";
 
+// Repetitive admin workflows should favor dense tables or grids over large decorative cards.
 const statusKeys: Record<MeetingEvent["status"], TranslationKey> = {
   draft: "admin.eventStatus.draft",
   active: "admin.eventStatus.active",
