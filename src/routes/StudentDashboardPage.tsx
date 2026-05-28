@@ -193,20 +193,20 @@ export function StudentDashboardPage() {
         <LanguageSwitcher compact className="shrink-0" />
       </header>
 
-      <section className="surface px-4 py-4 sm:px-5 sm:py-5">
+      <section className="surface px-4 py-3 sm:px-5 sm:py-4">
         <div className="space-y-2 text-left">
-          <p className="text-strong text-xl font-black tracking-tight sm:text-2xl">
+          <p className="text-strong text-lg font-black tracking-tight sm:text-xl">
             {t(branding.schoolName)}
           </p>
-          <p className="label text-[10px] tracking-[0.28em]">
+          <p className="label text-[9px] tracking-[0.24em]">
             {decodedMeetingCode}
           </p>
-          <p className="text-strong text-base font-bold sm:text-lg">
+          <p className="text-strong text-sm font-bold sm:text-base">
             {parentMeetingView
               ? `${parentMeetingView.student.name} · ${parentMeetingView.student.className}`
               : t("dashboard.unknownStudent")}
           </p>
-          <p className="copy text-sm font-semibold sm:text-base">
+          <p className="copy text-xs font-semibold sm:text-sm">
             {t("dashboard.classTeacher")}:{" "}
             {parentMeetingView?.classTeacher?.name ?? t("dashboard.unknownClass")}
           </p>
@@ -219,31 +219,6 @@ export function StudentDashboardPage() {
         </p>
       ) : null}
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <InfoCard
-          label={t("dashboard.studentName")}
-          value={
-            status === "loading"
-              ? t("dashboard.loadingValue")
-              : parentMeetingView?.student.name ?? t("dashboard.unknownStudent")
-          }
-        />
-        <InfoCard
-          label={t("dashboard.className")}
-          value={parentMeetingView?.student.className ?? t("dashboard.unknownClass")}
-        />
-        <InfoCard
-          label={t("dashboard.classTeacher")}
-          value={
-            parentMeetingView?.classTeacher?.name ?? t("dashboard.unknownClass")
-          }
-        />
-        <InfoCard
-          label={t("meeting.title")}
-          value={decodedMeetingCode || t("dashboard.unknownClass")}
-        />
-      </section>
-
       {status === "loading" ? (
         <section className="surface p-5 text-center sm:p-6">
           <p className="text-strong text-base font-extrabold sm:text-lg">
@@ -254,14 +229,6 @@ export function StudentDashboardPage() {
 
       {status === "success" && parentMeetingView ? (
         <section>
-          <div className="mb-3 flex items-end justify-between gap-4">
-            <div>
-              <p className="label">{t("dashboard.teachers")}</p>
-              <p className="copy mt-1 text-sm font-semibold">
-                {teacherAssignments.length}
-              </p>
-            </div>
-          </div>
           <div className="grid gap-3 lg:grid-cols-2">
             {teacherAssignments.map((assignment) => (
               <TeacherCard key={assignment.id} assignment={assignment} />
@@ -281,13 +248,13 @@ export function StudentDashboardPage() {
         </section>
       ) : null}
 
-      <section className="surface px-4 py-4 sm:px-5 sm:py-5">
+      <section className="surface px-4 py-3 sm:px-5 sm:py-4">
         <div className="grid gap-2 sm:grid-cols-3">
-          <button className="btn-primary" onClick={handleStartOver} type="button">
+          <button className="btn-primary py-2.5 text-sm" onClick={handleStartOver} type="button">
             {t("dashboard.startOver")}
           </button>
           <button
-            className="btn-secondary"
+            className="btn-secondary py-2.5 text-sm"
             disabled={!parentMeetingView}
             onClick={handleShare}
             type="button"
@@ -295,7 +262,7 @@ export function StudentDashboardPage() {
             {t("dashboard.shareSave")}
           </button>
           <button
-            className="btn-secondary"
+            className="btn-secondary py-2.5 text-sm"
             disabled={!parentMeetingView}
             onClick={handleEmail}
             type="button"
@@ -308,17 +275,6 @@ export function StudentDashboardPage() {
       <footer className="pb-1 text-center">
         <VersionBadge compact />
       </footer>
-    </div>
-  );
-}
-
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="surface px-4 py-3">
-      <p className="label text-[10px]">{label}</p>
-      <p className="text-strong mt-1 break-words text-base font-black leading-tight sm:text-lg">
-        {value}
-      </p>
     </div>
   );
 }
