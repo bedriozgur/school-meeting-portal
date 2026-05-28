@@ -17,7 +17,6 @@ type AdminNavItem = {
 const navItems: AdminNavItem[] = [
   { to: "/admin", label: "admin.nav.dashboard", end: true },
   { to: "/admin/pilot-checklist", label: "admin.nav.pilotChecklist" },
-  { to: "/admin/school-users", label: "admin.nav.schoolUsers" },
   { to: "/admin/events", label: "admin.nav.events" },
   { to: "/admin/students", label: "admin.nav.students" },
   { to: "/admin/teachers", label: "admin.nav.teachers" },
@@ -165,6 +164,7 @@ export function AdminLayout() {
               </NavLink>
             ))}
           </nav>
+          {/* School user management returns after the pilot. */}
           <button className="btn-secondary mt-4 w-full" onClick={signOut} type="button">
             {t("admin.signOut")}
           </button>

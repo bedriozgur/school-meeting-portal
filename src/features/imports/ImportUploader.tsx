@@ -11,12 +11,14 @@ type ImportUploaderProps = {
   expectedColumnsKey: TranslationKey;
   fileName: string;
   templateActions?: ImportTemplateAction[];
+  dataActions?: ImportTemplateAction[];
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
   uploadTitleKey: TranslationKey;
 };
 
 export function ImportUploader({
   expectedColumnsKey,
+  dataActions = [],
   fileName,
   templateActions = [],
   onFileChange,
@@ -33,17 +35,41 @@ export function ImportUploader({
         </h2>
       </div>
       {templateActions.length > 0 ? (
-        <div className="flex flex-wrap gap-3">
-          {templateActions.map((action) => (
-            <button
-              className="btn-secondary w-full sm:w-auto"
-              key={action.labelKey}
-              onClick={action.onDownload}
-              type="button"
-            >
-              {t(action.labelKey)}
-            </button>
-          ))}
+        <div className="space-y-2">
+          <p className="label">{t("admin.importTemplateDownloadsLabel")}</p>
+          <div className="flex flex-wrap gap-3">
+            {templateActions.map((action) => (
+              <button
+                className="btn-secondary w-full sm:w-auto"
+                key={action.labelKey}
+                onClick={() => {
+                  void action.onDownload();
+                }}
+                type="button"
+              >
+                {t(action.labelKey)}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {dataActions.length > 0 ? (
+        <div className="space-y-2">
+          <p className="label">{t("admin.importCurrentDataDownloadsLabel")}</p>
+          <div className="flex flex-wrap gap-3">
+            {dataActions.map((action) => (
+              <button
+                className="btn-secondary w-full sm:w-auto"
+                key={action.labelKey}
+                onClick={() => {
+                  void action.onDownload();
+                }}
+                type="button"
+              >
+                {t(action.labelKey)}
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
       <label className="block">

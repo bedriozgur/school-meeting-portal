@@ -5,12 +5,15 @@ import {
   buildTemplateDownloadAction,
   importTemplateConfigs,
 } from "../features/imports/importTemplates";
+import { downloadCsvRows } from "../features/imports/csvTemplate";
 import { parseIsActive } from "../features/imports/importUtils";
 import type { ImportRowBase } from "../features/imports/types";
 import { useParsedImportFile } from "../features/imports/useParsedImportFile";
 import { useT } from "../hooks/useT";
 import type { TranslationKey } from "../i18n/i18n";
 import { repositories } from "../repositories";
+import { useAdminSchoolStore } from "../store/adminSchoolStore";
+import { resolveTeachingAssignmentSubject } from "../utils/teachingAssignments";
 
 type ParsedTeacherRow = ImportRowBase & {
   defaultSubject: string;
@@ -47,6 +50,7 @@ type ParsedAssignmentRow = ImportRowBase & {
 
 export function AdminImportPage() {
   const { t } = useT();
+  const { currentSchoolId } = useAdminSchoolStore();
   const teacherTemplateAction = buildTemplateDownloadAction("teachers");
   const classTemplateAction = buildTemplateDownloadAction("classes");
   const studentTemplateAction = buildTemplateDownloadAction("students");
@@ -55,7 +59,12 @@ export function AdminImportPage() {
   const classTemplate = importTemplateConfigs.classes;
   const studentTemplate = importTemplateConfigs.students;
   const assignmentTemplate = importTemplateConfigs.assignments;
+  const teacherExportAction = buildCurrentTeachersExportAction(currentSchoolId);
+  const classExportAction = buildCurrentClassesExportAction(currentSchoolId);
+  const studentExportAction = buildCurrentStudentsExportAction(currentSchoolId);
+  const assignmentExportAction = buildCurrentAssignmentsExportAction(currentSchoolId);
   const teacherImport = useParsedImportFile<ParsedTeacherRow>({
+    resetKey: currentSchoolId,
     validateRows: validateTeacherRows,
     importRows: async (rows) => {
       const result = await repositories.teacherRepository.bulkUpsertTeachers(
@@ -73,10 +82,11 @@ export function AdminImportPage() {
     },
   });
   const classImport = useParsedImportFile<ParsedClassRow>({
+    resetKey: currentSchoolId,
     validateRows: async (rows) =>
       validateClassRows(
         rows,
-        await repositories.teacherRepository.listTeachers(),
+        await repositories.teacherRepository.listTeachers(currentSchoolId),
       ),
     importRows: async (rows) => {
       const result = await repositories.classRepository.bulkUpsertClasses(
@@ -95,8 +105,12 @@ export function AdminImportPage() {
     },
   });
   const studentImport = useParsedImportFile<ParsedStudentRow>({
+    resetKey: currentSchoolId,
     validateRows: async (rows) =>
-      validateStudentRows(rows, await repositories.classRepository.listClasses()),
+      validateStudentRows(
+        rows,
+        await repositories.classRepository.listClasses(currentSchoolId),
+      ),
     importRows: async (rows) => {
       const result = await repositories.studentRepository.bulkUpsertStudents(
         rows.map((row) => ({
@@ -114,11 +128,12 @@ export function AdminImportPage() {
     },
   });
   const assignmentImport = useParsedImportFile<ParsedAssignmentRow>({
+    resetKey: currentSchoolId,
     validateRows: async (rows) =>
       validateAssignmentRows(
         rows,
-        await repositories.classRepository.listClasses(),
-        await repositories.teacherRepository.listTeachers(),
+        await repositories.classRepository.listClasses(currentSchoolId),
+        await repositories.teacherRepository.listTeachers(currentSchoolId),
       ),
     importRows: async (rows) => {
       const result =
@@ -147,6 +162,7 @@ export function AdminImportPage() {
         descriptionKey={teacherTemplate.section.descriptionKey}
         errorKey={teacherTemplate.section.errorKey}
         expectedColumnsKey={teacherTemplate.expectedColumnsKey}
+        dataActions={[teacherExportAction]}
         importingKey={teacherTemplate.section.importingKey}
         templateActions={[teacherTemplateAction]}
         previewTitleKey={teacherTemplate.section.previewTitleKey}
@@ -181,6 +197,7 @@ export function AdminImportPage() {
         descriptionKey={classTemplate.section.descriptionKey}
         errorKey={classTemplate.section.errorKey}
         expectedColumnsKey={classTemplate.expectedColumnsKey}
+        dataActions={[classExportAction]}
         eyebrowKey={classTemplate.section.eyebrowKey}
         importingKey={classTemplate.section.importingKey}
         templateActions={[classTemplateAction]}
@@ -217,6 +234,7 @@ export function AdminImportPage() {
         descriptionKey={studentTemplate.section.descriptionKey}
         errorKey={studentTemplate.section.errorKey}
         expectedColumnsKey={studentTemplate.expectedColumnsKey}
+        dataActions={[studentExportAction]}
         eyebrowKey={studentTemplate.section.eyebrowKey}
         importingKey={studentTemplate.section.importingKey}
         templateActions={[studentTemplateAction]}
@@ -253,6 +271,7 @@ export function AdminImportPage() {
         descriptionKey={assignmentTemplate.section.descriptionKey}
         errorKey={assignmentTemplate.section.errorKey}
         expectedColumnsKey={assignmentTemplate.expectedColumnsKey}
+        dataActions={[assignmentExportAction]}
         eyebrowKey={assignmentTemplate.section.eyebrowKey}
         importingKey={assignmentTemplate.section.importingKey}
         templateActions={[assignmentTemplateAction]}
@@ -521,4 +540,127 @@ function validateAssignmentRows(
       warnings,
     };
   });
+}
+
+function buildCurrentTeachersExportAction(schoolId: string) {
+  return {
+    labelKey: "admin.importDownloadCurrentTeachersCsv" as TranslationKey,
+    onDownload: async () => {
+      const teachers = await repositories.teacherRepository.listTeachers(schoolId);
+
+      downloadCsvRows({
+        filename: "teachers-current-data.csv",
+        headers: ["fullName", "defaultSubject", "isActive"],
+        rows: teachers.map((teacher) => ({
+          fullName: teacher.name,
+          defaultSubject: teacher.subject,
+          isActive: teacher.isActive === false ? "false" : "true",
+        })),
+      });
+    },
+  };
+}
+
+function buildCurrentClassesExportAction(schoolId: string) {
+  return {
+    labelKey: "admin.importDownloadCurrentClassesCsv" as TranslationKey,
+    onDownload: async () => {
+      const [classes, teachers] = await Promise.all([
+        repositories.classRepository.listClasses(schoolId),
+        repositories.teacherRepository.listTeachers(schoolId),
+      ]);
+      const teacherNameById = new Map(teachers.map((teacher) => [teacher.id, teacher.name]));
+
+      downloadCsvRows({
+        filename: "classes-current-data.csv",
+        headers: ["className", "grade", "classTeacher", "isActive"],
+        rows: classes.map((schoolClass) => ({
+          className: schoolClass.name,
+          grade: schoolClass.grade,
+          classTeacher: schoolClass.classTeacherId
+            ? teacherNameById.get(schoolClass.classTeacherId) ?? ""
+            : "",
+          isActive: schoolClass.isActive === false ? "false" : "true",
+        })),
+      });
+    },
+  };
+}
+
+function buildCurrentStudentsExportAction(schoolId: string) {
+  return {
+    labelKey: "admin.importDownloadCurrentStudentsCsv" as TranslationKey,
+    onDownload: async () => {
+      const [students, classes] = await Promise.all([
+        repositories.studentRepository.listStudents(schoolId),
+        repositories.classRepository.listClasses(schoolId),
+      ]);
+      const classNameById = new Map(classes.map((schoolClass) => [schoolClass.id, schoolClass.name]));
+
+      downloadCsvRows({
+        filename: "students-current-data.csv",
+        headers: ["schoolNumber", "fullName", "className", "isActive"],
+        rows: students.map((student) => ({
+          schoolNumber: student.schoolNumber,
+          fullName: student.name,
+          className: classNameById.get(student.classId) ?? student.className,
+          isActive: student.isActive === false ? "false" : "true",
+        })),
+      });
+    },
+  };
+}
+
+function buildCurrentAssignmentsExportAction(schoolId: string) {
+  return {
+    labelKey: "admin.importDownloadCurrentAssignmentsCsv" as TranslationKey,
+    onDownload: async () => {
+      const [classes, teachers] = await Promise.all([
+        repositories.classRepository.listClasses(schoolId),
+        repositories.teacherRepository.listTeachers(schoolId),
+      ]);
+      const classNameById = new Map(classes.map((schoolClass) => [schoolClass.id, schoolClass.name]));
+      const teacherById = new Map(teachers.map((teacher) => [teacher.id, teacher]));
+      const rows = (
+        await Promise.all(
+          classes.map(async (schoolClass) => {
+            const assignments =
+              await repositories.teachingAssignmentRepository.listTeachingAssignmentsForClass(
+                schoolClass.id,
+                schoolId,
+              );
+
+            return assignments.map((assignment) => {
+              const teacher = teacherById.get(assignment.teacherId) ?? null;
+              const resolvedSubject = resolveTeachingAssignmentSubject({
+                assignment,
+                teacher,
+              });
+              const teacherSubject = teacher?.subject.trim() ?? "";
+              const exportSubject =
+                assignment.subjectOverride?.trim() ||
+                (assignment.subject.trim() &&
+                assignment.subject.trim() !== teacherSubject
+                  ? assignment.subject.trim()
+                  : "") ||
+                (!teacherSubject ? resolvedSubject : "");
+
+              return {
+                className: classNameById.get(assignment.classId) ?? schoolClass.name,
+                teacherName: teacher?.name ?? "",
+                subject: exportSubject,
+                isActive: assignment.isActive === false ? "false" : "true",
+              };
+            });
+          }),
+        )
+      ).flat();
+
+      downloadCsvRows({
+        filename: "teaching-assignments-current-data.csv",
+        headers: ["className", "teacherName", "subject", "isActive"],
+        rows,
+      });
+    },
+  };
 }

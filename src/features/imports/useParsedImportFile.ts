@@ -1,15 +1,17 @@
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { parseImportFile, splitImportRows } from "./importUtils";
 import type { ImportResult, ImportRowBase, ImportStatus } from "./types";
 
 type UseParsedImportFileParams<Row extends ImportRowBase> = {
   validateRows: (rows: Record<string, unknown>[]) => Promise<Row[]> | Row[];
   importRows: (rows: Row[]) => Promise<ImportResult>;
+  resetKey?: string;
 };
 
 export function useParsedImportFile<Row extends ImportRowBase>({
   validateRows,
   importRows,
+  resetKey,
 }: UseParsedImportFileParams<Row>) {
   const [status, setStatus] = useState<ImportStatus>("idle");
   const [rows, setRows] = useState<Row[]>([]);
@@ -17,6 +19,13 @@ export function useParsedImportFile<Row extends ImportRowBase>({
   const [result, setResult] = useState<ImportResult | null>(null);
   const validation = useMemo(() => splitImportRows(rows), [rows]);
   const canImport = status === "ready" && validation.validRows.length > 0;
+
+  useEffect(() => {
+    setStatus("idle");
+    setRows([]);
+    setFileName("");
+    setResult(null);
+  }, [resetKey]);
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];

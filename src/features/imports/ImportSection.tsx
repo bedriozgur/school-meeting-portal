@@ -23,6 +23,10 @@ type ImportSectionProps<Row extends ImportRowBase> = {
     labelKey: TranslationKey;
     onDownload: () => void;
   }>;
+  dataActions?: Array<{
+    labelKey: TranslationKey;
+    onDownload: () => void;
+  }>;
   renderPreviewRow: (row: Row) => ReactNode;
   result: ImportResult | null;
   rows: Row[];
@@ -50,6 +54,7 @@ export function ImportSection<Row extends ImportRowBase>({
   invalidRows,
   previewTitleKey,
   templateActions,
+  dataActions,
   renderPreviewRow,
   result,
   rows,
@@ -77,6 +82,7 @@ export function ImportSection<Row extends ImportRowBase>({
 
       <ImportUploader
         expectedColumnsKey={expectedColumnsKey}
+        dataActions={dataActions}
         fileName={fileName}
         templateActions={templateActions}
         onFileChange={handleFileChange}

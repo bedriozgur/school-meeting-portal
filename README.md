@@ -231,6 +231,8 @@ Placeholder protected pages:
 - `/admin/qr`
 - `/admin/staff`
 
+The school user management backend foundation remains in place, but the `/admin/school-users` menu item is hidden during the pilot to keep the UI focused.
+
 ## Staff Portal Status
 
 The front desk staff portal is now available at:
@@ -328,7 +330,7 @@ Student writes use:
 
 Student school numbers are validated as unique within the configured school. Edits allow the current student to keep the same school number. Firestore student creates include `schoolId`, `classId`, `createdAt`, and `updatedAt`; updates set `classId` and `updatedAt`. Existing Firestore rules allow platform admins, legacy admins, and matching school admins to write student records.
 
-Teacher, class, and student imports share reusable parsing, upload, validation summary, message, preview, and confirmation components under `src/features/imports/`. Each import keeps its own row validation and repository mapping in the admin import route so future assignment import can reuse the same flow without changing existing behavior.
+Teacher, class, student, and teaching assignment imports share reusable parsing, upload, validation summary, message, preview, and confirmation components under `src/features/imports/`. Each import keeps its own row validation and repository mapping in the admin import route so future operational workflows can reuse the same flow without changing existing behavior.
 
 Teacher import is available at `/admin/import` for CSV and XLSX files.
 
@@ -413,7 +415,21 @@ Teaching assignment import rejects rows when the class or teacher does not exist
 
 Event teacher setup remains a separate admin workflow and stores event-specific building, floor, classroom, and availability values in `eventTeacherSetups`.
 
-Each import section on `/admin/import` also includes a CSV template download button. The template metadata is centralized in `src/features/imports/importTemplates.ts`, and the exported files are UTF-8 encoded with a BOM so Turkish characters open correctly in spreadsheet apps. Each template includes one example row.
+Each import section on `/admin/import` includes two kinds of CSV download actions:
+
+- Template downloads: empty/example formats for the import column set
+- Current data exports: selected-school rows from the repository layer, ready for Excel editing and re-import
+
+The template metadata is centralized in `src/features/imports/importTemplates.ts`, and the exported files are UTF-8 encoded with a BOM so Turkish characters open correctly in spreadsheet apps. Each template includes one example row.
+
+Current-data CSV exports use the same column names as the templates and can be edited and re-imported after saving. Matching rules stay the same as the import flow:
+
+- teachers by normalized full name
+- classes by normalized class name
+- students by normalized school number
+- teaching assignments by class, teacher, and resolved subject/default-subject key
+
+Pilot note: exporting all students is acceptable for the current school size, but a paginated or server-side export would be a better future fit for larger schools.
 
 The `/admin/qr` page generates PNG QR codes for the main portal, each meeting event, and an optional student support link. The student support QR is generated from a selected event plus a school number, and every QR card shows the exact target URL.
 
