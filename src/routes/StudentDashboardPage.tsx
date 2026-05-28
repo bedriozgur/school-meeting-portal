@@ -7,7 +7,7 @@ import { useT } from "../hooks/useT";
 import { repositories } from "../repositories";
 import { useSessionStore } from "../store/sessionStore";
 import { buildNotesSummary } from "../utils/share";
-import { sortTeacherAssignments } from "../utils/teachers";
+import { sortTeacherAssignmentsWithCompletion } from "../utils/teachers";
 
 type DashboardStatus = "loading" | "success" | "error";
 
@@ -29,8 +29,11 @@ export function StudentDashboardPage() {
     useState<ParentMeetingView | null>(null);
   const teacherAssignments = useMemo(
     () =>
-      sortTeacherAssignments(parentMeetingView?.teacherAssignments ?? []),
-    [parentMeetingView?.teacherAssignments],
+      sortTeacherAssignmentsWithCompletion(
+        parentMeetingView?.teacherAssignments ?? [],
+        teacherState,
+      ),
+    [parentMeetingView?.teacherAssignments, teacherState],
   );
 
   useEffect(() => {

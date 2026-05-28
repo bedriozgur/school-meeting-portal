@@ -1,42 +1,26 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { EventReadinessPanel } from "../components/EventReadinessPanel";
+import {
+  EventTeacherSetupGrid,
+  type EditableEventTeacherSetupRow,
+} from "../components/EventTeacherSetupGrid";
 import { DEFAULT_SCHOOL_ID } from "../config/school";
 import type {
-  Availability,
   EventReadiness,
   EventTeacherSetupOverview,
   MeetingEvent,
-  SchoolClass,
   Teacher,
   TeachingAssignment,
 } from "../domain/models";
 import { useT } from "../hooks/useT";
 import type { TranslationKey } from "../i18n/i18n";
 import { repositories } from "../repositories";
-import { useAdminSchoolStore } from "../store/adminSchoolStore";
 import { logFirestoreCollectionFailure } from "../repositories/firestore/firestoreRepositoryLogging";
+import { useAdminSchoolStore } from "../store/adminSchoolStore";
 
 type LoadStatus = "loading" | "success" | "error";
 type SaveStatus = "idle" | "saving" | "success" | "error";
-
-type SetupFormState = {
-  id: string | null;
-  teacherId: string;
-  building: string;
-  floor: string;
-  classroom: string;
-  isAvailable: boolean;
-};
-
-const emptyForm: SetupFormState = {
-  id: null,
-  teacherId: "",
-  building: "",
-  floor: "",
-  classroom: "",
-  isAvailable: true,
-};
 
 const statusKeys: Record<MeetingEvent["status"], TranslationKey> = {
   draft: "admin.eventStatus.draft",
@@ -45,81 +29,27 @@ const statusKeys: Record<MeetingEvent["status"], TranslationKey> = {
   archived: "admin.eventStatus.archived",
 };
 
-const availabilityKeys: Record<Availability, TranslationKey> = {
-  available: "dashboard.available",
-  busy: "dashboard.busy",
-  limited: "dashboard.limited",
-};
-
 export function AdminEventAssignmentsPage() {
   const { eventId = "" } = useParams();
   const { t } = useT();
   const { currentSchoolId, hasHydrated } = useAdminSchoolStore();
+  const selectedSchoolId = currentSchoolId.trim() || DEFAULT_SCHOOL_ID;
   const [loadStatus, setLoadStatus] = useState<LoadStatus>("loading");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [event, setEvent] = useState<MeetingEvent | null>(null);
   const [readiness, setReadiness] = useState<EventReadiness | null>(null);
-  const [readinessWarning, setReadinessWarning] = useState<TranslationKey | null>(
-    null,
-  );
-  const [classes, setClasses] = useState<SchoolClass[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [teachingAssignments, setTeachingAssignments] = useState<TeachingAssignment[]>([]);
-  const [setupRows, setSetupRows] = useState<EventTeacherSetupOverview[]>([]);
-  const [form, setForm] = useState<SetupFormState>(emptyForm);
+  const [readinessWarning, setReadinessWarning] =
+    useState<TranslationKey | null>(null);
+  const [partialLoadWarning, setPartialLoadWarning] =
+    useState<TranslationKey | null>(null);
+  const [editableRows, setEditableRows] = useState<
+    EditableEventTeacherSetupRow[]
+  >([]);
   const [errorKeys, setErrorKeys] = useState<TranslationKey[]>([]);
   const isDraft = event?.status === "draft";
 
-  const includedClasses = useMemo(
-    () =>
-      event
-        ? classes.filter((schoolClass) =>
-            event.includedClasses.includes(schoolClass.id),
-          )
-        : [],
-    [classes, event],
-  );
-
-  const includedClassIds = useMemo(() => new Set(includedClasses.map((item) => item.id)), [includedClasses]);
-
-  const involvedTeachers = useMemo(() => {
-    const teacherById = new Map(teachers.map((teacher) => [teacher.id, teacher] as const));
-    const subjectByTeacherId = new Map<string, string>();
-
-    teachingAssignments.forEach((assignment) => {
-      if (!includedClassIds.has(assignment.classId)) {
-        return;
-      }
-
-      if (!assignment.isActive) {
-        return;
-      }
-
-      if (!subjectByTeacherId.has(assignment.teacherId)) {
-        subjectByTeacherId.set(assignment.teacherId, assignment.subject);
-      }
-    });
-
-    return [...subjectByTeacherId.entries()]
-      .map(([teacherId, subject]) => {
-        const teacher = teacherById.get(teacherId);
-
-        if (!teacher) {
-          return null;
-        }
-
-        return {
-          teacher,
-          subject,
-        };
-      })
-      .filter((item): item is { teacher: Teacher; subject: string } => Boolean(item))
-      .sort((left, right) => left.teacher.name.localeCompare(right.teacher.name, "tr"));
-  }, [includedClassIds, teachers, teachingAssignments]);
-
   useEffect(() => {
     let isCurrent = true;
-    let resolvedSchoolId = currentSchoolId.trim() || DEFAULT_SCHOOL_ID;
 
     if (!hasHydrated) {
       return undefined;
@@ -127,56 +57,155 @@ export function AdminEventAssignmentsPage() {
 
     setLoadStatus("loading");
     setReadinessWarning(null);
+    setPartialLoadWarning(null);
+    setErrorKeys([]);
+    setEditableRows([]);
 
     (async () => {
       try {
+        if (import.meta.env.DEV) {
+          console.info("[Admin assignments] load started", {
+            eventId,
+            selectedSchoolId,
+            currentSchoolId,
+          });
+        }
+
         const nextEvent = await repositories.meetingRepository.getEventById(eventId);
 
         if (!nextEvent) {
           await logFirestoreCollectionFailure({
             collectionName: "events",
             operation: "getEventById",
+            schoolId: selectedSchoolId,
+            context: {
+              eventId,
+              currentSchoolId,
+              selectedSchoolId,
+            },
+            error: new Error(`Event not found: ${eventId}`),
+          });
+
+          if (isCurrent) {
+            setLoadStatus("error");
+          }
+
+          return;
+        }
+
+        const resolvedSchoolId =
+          nextEvent.schoolId?.trim() || selectedSchoolId;
+
+        if (import.meta.env.DEV) {
+          console.info("[Admin assignments] event resolved", {
+            eventId: nextEvent.id,
+            eventSchoolId: nextEvent.schoolId,
+            resolvedSchoolId,
+            selectedSchoolId,
+            currentSchoolId,
+          });
+        }
+
+        const [classesResult, teachersResult, assignmentsResult, setupsResult, readinessResult] =
+          await Promise.allSettled([
+            repositories.classRepository.listClasses(resolvedSchoolId),
+            repositories.teacherRepository.listTeachers(resolvedSchoolId),
+            Promise.all(
+              nextEvent.includedClasses.map((classId) =>
+                repositories.teachingAssignmentRepository.listTeachingAssignmentsForClass(
+                  classId,
+                  resolvedSchoolId,
+                ),
+              ),
+            ).then((rows) => rows.flat().filter((assignment) => assignment.isActive)),
+            repositories.assignmentRepository.listEventAssignments(eventId),
+            repositories.meetingRepository.validateEventReadiness(eventId),
+          ]);
+
+        const nextClasses =
+          classesResult.status === "fulfilled" ? classesResult.value : [];
+        const nextTeachers =
+          teachersResult.status === "fulfilled" ? teachersResult.value : [];
+        const nextTeachingAssignments =
+          assignmentsResult.status === "fulfilled" ? assignmentsResult.value : [];
+        const nextSetupRows =
+          setupsResult.status === "fulfilled" ? setupsResult.value : [];
+        const nextReadiness =
+          readinessResult.status === "fulfilled" ? readinessResult.value : null;
+
+        if (import.meta.env.DEV) {
+          console.info("[Admin assignments] load results", {
+            eventId,
+            resolvedSchoolId,
+            classesCount: nextClasses.length,
+            teachersCount: nextTeachers.length,
+            teachingAssignmentsCount: nextTeachingAssignments.length,
+            setupRowsCount: nextSetupRows.length,
+            readinessLoaded: readinessResult.status === "fulfilled",
+          });
+        }
+
+        if (classesResult.status === "rejected") {
+          setPartialLoadWarning("admin.assignmentsPartialLoadWarning");
+          await logFirestoreCollectionFailure({
+            collectionName: "classes",
+            operation: "listClasses",
             schoolId: resolvedSchoolId,
             context: {
               eventId,
               currentSchoolId,
-              selectedSchoolId: currentSchoolId,
+              selectedSchoolId,
             },
-            error: new Error(`Event not found: ${eventId}`),
+            error: classesResult.reason,
           });
-          if (isCurrent) {
-            setLoadStatus("error");
-          }
-          return;
         }
 
-        resolvedSchoolId =
-          nextEvent.schoolId?.trim() || currentSchoolId.trim() || DEFAULT_SCHOOL_ID;
+        if (teachersResult.status === "rejected") {
+          setPartialLoadWarning("admin.assignmentsPartialLoadWarning");
+          await logFirestoreCollectionFailure({
+            collectionName: "teachers",
+            operation: "listTeachers",
+            schoolId: resolvedSchoolId,
+            context: {
+              eventId,
+              currentSchoolId,
+              selectedSchoolId,
+            },
+            error: teachersResult.reason,
+          });
+        }
 
-        const [nextClasses, nextTeachers, nextSetupRows, nextTeachingAssignments] =
-          await Promise.all([
-            repositories.classRepository.listClasses(resolvedSchoolId),
-            repositories.teacherRepository.listTeachers(resolvedSchoolId),
-            repositories.meetingRepository.getEventAssignments(eventId),
-            (async () => {
-              const rows = await Promise.all(
-                nextEvent.includedClasses.map((classId) =>
-                  repositories.teachingAssignmentRepository.listTeachingAssignmentsForClass(
-                    classId,
-                    resolvedSchoolId,
-                  ),
-                ),
-              );
+        if (assignmentsResult.status === "rejected") {
+          setPartialLoadWarning("admin.assignmentsPartialLoadWarning");
+          await logFirestoreCollectionFailure({
+            collectionName: "teachingAssignments",
+            operation: "listTeachingAssignmentsForClass",
+            schoolId: resolvedSchoolId,
+            context: {
+              eventId,
+              currentSchoolId,
+              selectedSchoolId,
+            },
+            error: assignmentsResult.reason,
+          });
+        }
 
-              return rows.flat().filter((assignment) => assignment.isActive);
-            })(),
-          ]);
+        if (setupsResult.status === "rejected") {
+          setPartialLoadWarning("admin.assignmentsPartialLoadWarning");
+          await logFirestoreCollectionFailure({
+            collectionName: "eventTeacherSetups",
+            operation: "listEventAssignments",
+            schoolId: resolvedSchoolId,
+            context: {
+              eventId,
+              currentSchoolId,
+              selectedSchoolId,
+            },
+            error: setupsResult.reason,
+          });
+        }
 
-        let nextReadiness: EventReadiness | null = null;
-
-        try {
-          nextReadiness = await repositories.meetingRepository.validateEventReadiness(eventId);
-        } catch (error) {
+        if (readinessResult.status === "rejected") {
           setReadinessWarning("admin.assignmentsReadinessLoadWarning");
           await logFirestoreCollectionFailure({
             collectionName: "eventTeacherSetups",
@@ -185,9 +214,9 @@ export function AdminEventAssignmentsPage() {
             context: {
               eventId,
               currentSchoolId,
-              selectedSchoolId: currentSchoolId,
+              selectedSchoolId,
             },
-            error,
+            error: readinessResult.reason,
           });
         }
 
@@ -196,24 +225,37 @@ export function AdminEventAssignmentsPage() {
         }
 
         setEvent(nextEvent);
-        setClasses(nextClasses);
-        setTeachers(nextTeachers);
-        setSetupRows(nextSetupRows);
         setReadiness(nextReadiness);
-        setTeachingAssignments(nextTeachingAssignments);
+        setEditableRows(
+          buildEditableSetupRows({
+            event: nextEvent,
+            teachers: nextTeachers,
+            teachingAssignments: nextTeachingAssignments,
+            setupRows: nextSetupRows,
+          }),
+        );
         setLoadStatus("success");
       } catch (error) {
         await logFirestoreCollectionFailure({
           collectionName: "eventTeacherSetups",
           operation: "loadEventAssignmentsPage",
-          schoolId: resolvedSchoolId,
+          schoolId: selectedSchoolId,
           context: {
             eventId,
             currentSchoolId,
-            selectedSchoolId: currentSchoolId,
+            selectedSchoolId,
           },
           error,
         });
+
+        if (import.meta.env.DEV) {
+          console.error("[Admin assignments] load failed", {
+            eventId,
+            currentSchoolId,
+            selectedSchoolId,
+            error,
+          });
+        }
 
         if (isCurrent) {
           setLoadStatus("error");
@@ -224,16 +266,87 @@ export function AdminEventAssignmentsPage() {
     return () => {
       isCurrent = false;
     };
-  }, [currentSchoolId, eventId, hasHydrated]);
+  }, [currentSchoolId, eventId, hasHydrated, selectedSchoolId]);
 
-  async function handleSubmit(submitEvent: FormEvent<HTMLFormElement>) {
-    submitEvent.preventDefault();
+  function handleRowChange(
+    rowId: string,
+    patch: Partial<
+      Pick<
+        EditableEventTeacherSetupRow,
+        "isAvailable" | "building" | "floor" | "classroom"
+      >
+    >,
+  ) {
+    setEditableRows((currentRows) =>
+      currentRows.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              ...patch,
+            }
+          : row,
+      ),
+    );
+    setErrorKeys([]);
+    setSaveStatus("idle");
+  }
 
+  function handleToggleDelete(rowId: string) {
+    setEditableRows((currentRows) =>
+      currentRows.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              deleted: !row.deleted,
+            }
+          : row,
+      ),
+    );
+    setErrorKeys([]);
+    setSaveStatus("idle");
+  }
+
+  function handleMarkAllAvailable() {
+    setEditableRows((currentRows) =>
+      currentRows.map((row) =>
+        row.deleted
+          ? row
+          : {
+              ...row,
+              isAvailable: true,
+            },
+      ),
+    );
+    setErrorKeys([]);
+    setSaveStatus("idle");
+  }
+
+  function handleMarkAllUnavailable() {
+    setEditableRows((currentRows) =>
+      currentRows.map((row) =>
+        row.deleted
+          ? row
+          : {
+              ...row,
+              isAvailable: false,
+            },
+      ),
+    );
+    setErrorKeys([]);
+    setSaveStatus("idle");
+  }
+
+  async function handleSaveAll() {
     if (!event || !isDraft) {
       return;
     }
 
-    const validationErrors = validateSetupForm(form, setupRows);
+    const dirtyRows = editableRows.filter(isEditableSetupRowDirty);
+    if (dirtyRows.length === 0) {
+      return;
+    }
+
+    const validationErrors = validateEditableRows(dirtyRows);
     setErrorKeys(validationErrors);
 
     if (validationErrors.length > 0) {
@@ -241,100 +354,82 @@ export function AdminEventAssignmentsPage() {
     }
 
     setSaveStatus("saving");
+    let nextRows = [...editableRows];
 
     try {
-      const input = toSetupInput(event.id, form);
-      const savedSetup = form.id
-        ? await repositories.assignmentRepository.updateEventAssignment(form.id, input)
-        : await repositories.assignmentRepository.createEventAssignment(input);
+      for (const row of dirtyRows) {
+        if (row.deleted) {
+          if (row.persistedId) {
+            await repositories.assignmentRepository.deleteEventAssignment(
+              row.persistedId,
+            );
+          }
 
-      setSetupRows((currentRows) =>
-        sortSetups(
-          form.id
-            ? currentRows.map((row) => (row.id === savedSetup.id ? savedSetup : row))
-            : [...currentRows, savedSetup],
-        ),
-      );
-      const nextReadiness = await repositories.meetingRepository.validateEventReadiness(
-        event.id,
-      );
-      setReadiness(nextReadiness);
-      setForm(emptyForm);
-      setSaveStatus("success");
-    } catch {
-      setSaveStatus("error");
-    }
-  }
+          nextRows = nextRows.filter((current) => current.id !== row.id);
+          continue;
+        }
 
-  async function handleDelete(setupId: string) {
-    if (!isDraft || !window.confirm(t("admin.assignmentsConfirmDelete"))) {
-      return;
-    }
+        const savedSetup = row.persistedId
+          ? await repositories.assignmentRepository.updateEventAssignment(
+              row.persistedId,
+              toSetupInput(event.id, row),
+            )
+          : await repositories.assignmentRepository.createEventAssignment(
+              toSetupInput(event.id, row),
+            );
 
-    setSaveStatus("saving");
-
-    try {
-      await repositories.assignmentRepository.deleteEventAssignment(setupId);
-      setSetupRows((currentRows) => currentRows.filter((row) => row.id !== setupId));
-      const nextReadiness = await repositories.meetingRepository.validateEventReadiness(
-        eventId,
-      );
-      setReadiness(nextReadiness);
-      setSaveStatus("success");
-      if (form.id === setupId) {
-        setForm(emptyForm);
+        nextRows = nextRows.map((current) =>
+          current.id === row.id ? toEditableRow(savedSetup) : current,
+        );
       }
-    } catch {
-      setSaveStatus("error");
-    }
-  }
 
-  async function toggleAvailability(setup: EventTeacherSetupOverview) {
-    if (!isDraft || !event) {
-      return;
-    }
-
-    setSaveStatus("saving");
-
-    try {
-      const savedSetup = await repositories.assignmentRepository.updateEventAssignment(
-        setup.id,
-        {
-          eventId: event.id,
-          teacherId: setup.teacher.id,
-          building: setup.building,
-          floor: setup.floor,
-          classroom: setup.classroom,
-          isAvailable: setup.availability === "busy",
-        },
-      );
-
-      setSetupRows((currentRows) =>
-        sortSetups(
-          currentRows.map((row) => (row.id === savedSetup.id ? savedSetup : row)),
-        ),
-      );
-      const nextReadiness = await repositories.meetingRepository.validateEventReadiness(
-        event.id,
-      );
-      setReadiness(nextReadiness);
+      setEditableRows(sortEditableRowList(nextRows));
       setSaveStatus("success");
-    } catch {
+
+      try {
+        const nextReadiness =
+          await repositories.meetingRepository.validateEventReadiness(event.id);
+        setReadiness(nextReadiness);
+        setReadinessWarning(null);
+      } catch (error) {
+        setReadinessWarning("admin.assignmentsReadinessLoadWarning");
+        await logFirestoreCollectionFailure({
+          collectionName: "eventTeacherSetups",
+          operation: "validateEventReadiness",
+          schoolId: event.schoolId,
+          context: {
+            eventId: event.id,
+            currentSchoolId,
+            selectedSchoolId,
+          },
+          error,
+        });
+      }
+    } catch (error) {
+      await logFirestoreCollectionFailure({
+        collectionName: "eventTeacherSetups",
+        operation: "saveAllEventAssignments",
+        schoolId: event.schoolId,
+        context: {
+          eventId: event.id,
+          currentSchoolId,
+          selectedSchoolId,
+        },
+        error,
+      });
+
+      if (import.meta.env.DEV) {
+        console.error("[Admin assignments] save all failed", {
+          eventId: event.id,
+          currentSchoolId,
+          selectedSchoolId,
+          error,
+        });
+      }
+
+      setEditableRows(sortEditableRowList(nextRows));
       setSaveStatus("error");
     }
-  }
-
-  function startEdit(setup: EventTeacherSetupOverview) {
-    setForm({
-      id: setup.id.startsWith("missing-") ? null : setup.id,
-      teacherId: setup.teacher.id,
-      building: setup.building,
-      floor: String(setup.floor),
-      classroom: setup.classroom,
-      isAvailable: setup.availability !== "busy",
-    });
-    setErrorKeys([]);
-    setSaveStatus("idle");
   }
 
   if (loadStatus === "loading") {
@@ -370,7 +465,10 @@ export function AdminEventAssignmentsPage() {
               {t("admin.assignmentsDescription")}
             </p>
           </div>
-          <Link className="btn-secondary w-full sm:w-auto" to={`/admin/events/${event.id}`}>
+          <Link
+            className="btn-secondary w-full sm:w-auto"
+            to={`/admin/events/${event.id}`}
+          >
             {t("admin.assignmentsBackToEvent")}
           </Link>
         </div>
@@ -392,6 +490,14 @@ export function AdminEventAssignmentsPage() {
         ) : null}
       </section>
 
+      {partialLoadWarning ? (
+        <section className="surface p-6 sm:p-8">
+          <p className="status-warning rounded-2xl px-4 py-3 text-sm font-bold">
+            {t(partialLoadWarning)}
+          </p>
+        </section>
+      ) : null}
+
       {readiness ? (
         <EventReadinessPanel readiness={readiness} />
       ) : readinessWarning ? (
@@ -402,300 +508,236 @@ export function AdminEventAssignmentsPage() {
         </section>
       ) : null}
 
-      <section className="surface p-6 sm:p-8">
-        <div className="mb-4">
-          <p className="label">{t("admin.assignmentsFormEyebrow")}</p>
-          <h2 className="text-strong mt-2 text-2xl font-black">
-            {form.id
-              ? t("admin.assignmentsEditTitle")
-              : t("admin.assignmentsAddTitle")}
-          </h2>
-        </div>
-
-        {errorKeys.length > 0 ? (
-          <div className="status-danger mb-4 rounded-2xl px-4 py-3 text-sm font-bold">
+      {errorKeys.length > 0 ? (
+        <section className="surface p-6 sm:p-8">
+          <div className="status-danger rounded-2xl px-4 py-3 text-sm font-bold">
             {errorKeys.map((errorKey) => (
               <p key={errorKey}>{t(errorKey)}</p>
             ))}
           </div>
-        ) : null}
+        </section>
+      ) : null}
 
-        {saveStatus === "success" ? (
-          <p className="status-success mb-4 rounded-2xl px-4 py-3 text-sm font-bold">
-            {t("admin.assignmentsSaveSuccess")}
+      {saveStatus === "success" ? (
+        <section className="surface p-6 sm:p-8">
+          <p className="status-success rounded-2xl px-4 py-3 text-sm font-bold">
+            {t("admin.assignmentsBulkSaveSuccess")}
           </p>
-        ) : null}
+        </section>
+      ) : null}
 
-        {saveStatus === "error" ? (
-          <p className="status-danger mb-4 rounded-2xl px-4 py-3 text-sm font-bold">
-            {t("admin.assignmentsSaveError")}
+      {saveStatus === "error" ? (
+        <section className="surface p-6 sm:p-8">
+          <p className="status-danger rounded-2xl px-4 py-3 text-sm font-bold">
+            {t("admin.assignmentsBulkSaveError")}
           </p>
-        ) : null}
+        </section>
+      ) : null}
 
-        <form className="grid gap-4" onSubmit={handleSubmit}>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <label>
-              <span className="label">{t("admin.assignmentTeacher")}</span>
-              <select
-                className="input mt-2"
-                disabled={!isDraft}
-                onChange={(inputEvent) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    teacherId: inputEvent.target.value,
-                  }))
-                }
-                value={form.teacherId}
-              >
-                <option value="">{t("admin.assignmentsSelectTeacher")}</option>
-                {involvedTeachers.map(({ teacher, subject }) => (
-                  <option key={teacher.id} value={teacher.id}>
-                    {teacher.name} · {subject}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              <span className="label">{t("admin.assignmentAvailability")}</span>
-              <select
-                className="input mt-2"
-                disabled={!isDraft}
-                onChange={(inputEvent) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    isAvailable: inputEvent.target.value === "available",
-                  }))
-                }
-                value={form.isAvailable ? "available" : "busy"}
-              >
-                <option value="available">{t("dashboard.available")}</option>
-                <option value="busy">{t("dashboard.busy")}</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <label>
-              <span className="label">{t("dashboard.building")}</span>
-              <input
-                className="input mt-2"
-                disabled={!isDraft}
-                onChange={(inputEvent) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    building: inputEvent.target.value,
-                  }))
-                }
-                value={form.building}
-              />
-            </label>
-            <label>
-              <span className="label">{t("dashboard.floor")}</span>
-              <input
-                className="input mt-2"
-                disabled={!isDraft}
-                onChange={(inputEvent) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    floor: inputEvent.target.value,
-                  }))
-                }
-                type="number"
-                value={form.floor}
-              />
-            </label>
-            <label>
-              <span className="label">{t("dashboard.classroom")}</span>
-              <input
-                className="input mt-2"
-                disabled={!isDraft}
-                onChange={(inputEvent) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    classroom: inputEvent.target.value,
-                  }))
-                }
-                value={form.classroom}
-              />
-            </label>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button
-              className="btn-primary"
-              disabled={!isDraft || saveStatus === "saving"}
-              type="submit"
-            >
-              {saveStatus === "saving"
-                ? t("admin.assignmentsSaving")
-                : t("admin.assignmentsSave")}
-            </button>
-            <button
-              className="btn-secondary"
-              disabled={!isDraft}
-              onClick={() => {
-                setForm(emptyForm);
-                setErrorKeys([]);
-              }}
-              type="button"
-            >
-              {t("admin.assignmentsClearForm")}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section className="surface p-6 sm:p-8">
-        <div className="mb-4">
-          <p className="label">{t("admin.assignmentOverviewEyebrow")}</p>
-          <h2 className="text-strong mt-2 text-2xl font-black">
-            {t("admin.assignmentOverviewTitle")}
-          </h2>
-        </div>
-        <div className="grid gap-3">
-          {setupRows.map((setup) => (
-      <SetupRow
-              key={setup.id}
-              isDraft={isDraft}
-              onDelete={handleDelete}
-              onEdit={startEdit}
-              onToggleAvailability={toggleAvailability}
-              setup={setup}
-            />
-          ))}
-        </div>
-      </section>
+      {/* Repetitive admin workflows should prefer compact table/matrix layouts. */}
+      {/* Parent-facing mobile workflows should stay compact cards with clear task state. */}
+      <EventTeacherSetupGrid
+        isDraft={isDraft ?? false}
+        isSaving={saveStatus === "saving"}
+        onMarkAllAvailable={handleMarkAllAvailable}
+        onMarkAllUnavailable={handleMarkAllUnavailable}
+        onRowChange={handleRowChange}
+        onSaveAll={handleSaveAll}
+        onToggleDelete={handleToggleDelete}
+        rows={editableRows}
+      />
     </div>
   );
 }
 
-function SetupRow({
-  setup,
-  isDraft,
-  onDelete,
-  onEdit,
-  onToggleAvailability,
-}: {
-  setup: EventTeacherSetupOverview;
-  isDraft: boolean;
-  onDelete: (setupId: string) => void;
-  onEdit: (setup: EventTeacherSetupOverview) => void;
-  onToggleAvailability: (setup: EventTeacherSetupOverview) => void;
-}) {
-  const { t } = useT();
-
-  return (
-    <article className="soft-panel grid gap-3 rounded-2xl p-4 xl:grid-cols-[1fr_1fr_0.7fr_0.5fr_0.8fr_0.8fr_auto]">
-      <RowCell label={t("admin.assignmentTeacher")} value={setup.teacher.name} />
-      <RowCell label={t("admin.assignmentSubject")} value={setup.subject} />
-      <RowCell label={t("dashboard.building")} value={setup.building || t("admin.masterDataMissingValue")} />
-      <RowCell label={t("dashboard.floor")} value={setup.floor ? String(setup.floor) : t("admin.masterDataMissingValue")} />
-      <RowCell label={t("dashboard.classroom")} value={setup.classroom || t("admin.masterDataMissingValue")} />
-      <RowCell
-        label={t("admin.assignmentAvailability")}
-        value={t(availabilityKeys[setup.availability])}
-      />
-      <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
-        <button
-          className="btn-secondary"
-          disabled={!isDraft}
-          onClick={() => onEdit(setup)}
-          type="button"
-        >
-          {t("admin.assignmentsEdit")}
-        </button>
-        <button
-          className="btn-secondary"
-          disabled={!isDraft || setup.id.startsWith("missing-")}
-          onClick={() => onToggleAvailability(setup)}
-          type="button"
-        >
-          {t("admin.assignmentsToggleAvailability")}
-        </button>
-        <button
-          className="btn-secondary"
-          disabled={!isDraft || setup.id.startsWith("missing-")}
-          onClick={() => onDelete(setup.id)}
-          type="button"
-        >
-          {t("admin.assignmentsRemove")}
-        </button>
-      </div>
-    </article>
+function buildEditableSetupRows(params: {
+  event: MeetingEvent;
+  teachers: Teacher[];
+  teachingAssignments: TeachingAssignment[];
+  setupRows: EventTeacherSetupOverview[];
+}): EditableEventTeacherSetupRow[] {
+  const teacherById = new Map(
+    params.teachers.map((teacher) => [teacher.id, teacher] as const),
   );
+  const subjectByTeacherId = new Map<string, string>();
+  params.teachingAssignments.forEach((assignment) => {
+    if (!assignment.isActive || subjectByTeacherId.has(assignment.teacherId)) {
+      return;
+    }
+
+    subjectByTeacherId.set(assignment.teacherId, assignment.subject);
+  });
+
+  const setupByTeacherId = new Map(
+    params.setupRows.map((setup) => [setup.teacher.id, setup] as const),
+  );
+  const teacherIds = new Set<string>();
+
+  params.setupRows.forEach((setup) => {
+    teacherIds.add(setup.teacher.id);
+  });
+  params.teachingAssignments.forEach((assignment) => {
+    if (assignment.isActive) {
+      teacherIds.add(assignment.teacherId);
+    }
+  });
+
+  return [...teacherIds]
+    .map((teacherId) => {
+      const teacher = teacherById.get(teacherId);
+      const setup = setupByTeacherId.get(teacherId);
+      const subject =
+        setup?.subject ??
+        subjectByTeacherId.get(teacherId) ??
+        teacher?.subject ??
+        "";
+      const building = setup?.building ?? "";
+      const floor = setup ? String(setup.floor) : "";
+      const classroom = setup?.classroom ?? "";
+      const isAvailable = setup ? setup.availability !== "busy" : true;
+      const persistedId =
+        setup && !setup.id.startsWith("missing-") ? setup.id : null;
+
+      return {
+        id: setup?.id ?? `missing-${params.event.id}-${teacherId}`,
+        persistedId,
+        teacherId,
+        teacherName: teacher?.name ?? setup?.teacher.name ?? teacherId,
+        subject,
+        isAvailable,
+        building,
+        floor,
+        classroom,
+        locationMissing:
+          !setup ||
+          setup.locationMissing === true ||
+          setup.id.startsWith("missing-"),
+        deleted: false,
+        baseline: {
+          isAvailable,
+          building,
+          floor,
+          classroom,
+          deleted: false,
+        },
+      } satisfies EditableEventTeacherSetupRow;
+    })
+    .sort(sortEditableRowComparator);
+}
+
+function sortEditableRowList(rows: EditableEventTeacherSetupRow[]) {
+  return [...rows].sort(sortEditableRowComparator);
+}
+
+function sortEditableRowComparator(
+  left: EditableEventTeacherSetupRow,
+  right: EditableEventTeacherSetupRow,
+) {
+  if (left.deleted !== right.deleted) {
+    return left.deleted ? 1 : -1;
+  }
+
+  const building = left.building.localeCompare(right.building, "tr");
+  if (building !== 0) {
+    return building;
+  }
+
+  const leftFloor = Number(left.floor);
+  const rightFloor = Number(right.floor);
+  if (Number.isFinite(leftFloor) && Number.isFinite(rightFloor) && leftFloor !== rightFloor) {
+    return leftFloor - rightFloor;
+  }
+
+  const classroom = left.classroom.localeCompare(right.classroom, "tr", {
+    numeric: true,
+  });
+  if (classroom !== 0) {
+    return classroom;
+  }
+
+  return left.teacherName.localeCompare(right.teacherName, "tr");
+}
+
+function isEditableSetupRowDirty(row: EditableEventTeacherSetupRow) {
+  return (
+    row.isAvailable !== row.baseline.isAvailable ||
+    row.building !== row.baseline.building ||
+    row.floor !== row.baseline.floor ||
+    row.classroom !== row.baseline.classroom ||
+    row.deleted !== row.baseline.deleted
+  );
+}
+
+function validateEditableRows(rows: EditableEventTeacherSetupRow[]) {
+  const errors: TranslationKey[] = [];
+
+  for (const row of rows) {
+    if (row.deleted) {
+      continue;
+    }
+
+    if (!row.building.trim()) {
+      errors.push("admin.assignmentsErrorBuildingRequired");
+    }
+
+    if (!row.floor.trim() || !Number.isFinite(Number(row.floor))) {
+      errors.push("admin.assignmentsErrorFloorRequired");
+    }
+
+    if (!row.classroom.trim()) {
+      errors.push("admin.assignmentsErrorClassroomRequired");
+    }
+  }
+
+  return [...new Set(errors)];
+}
+
+function toSetupInput(eventId: string, row: EditableEventTeacherSetupRow) {
+  return {
+    eventId,
+    teacherId: row.teacherId,
+    building: row.building.trim(),
+    floor: Number(row.floor),
+    classroom: row.classroom.trim(),
+    isAvailable: row.isAvailable,
+  };
+}
+
+function toEditableRow(
+  setup: EventTeacherSetupOverview,
+): EditableEventTeacherSetupRow {
+  const isAvailable = setup.availability !== "busy";
+  const floor = String(setup.floor);
+
+  return {
+    id: setup.id,
+    persistedId: setup.id.startsWith("missing-") ? null : setup.id,
+    teacherId: setup.teacher.id,
+    teacherName: setup.teacher.name,
+    subject: setup.subject,
+    isAvailable,
+    building: setup.building,
+    floor,
+    classroom: setup.classroom,
+    locationMissing: setup.locationMissing ?? setup.id.startsWith("missing-"),
+    deleted: false,
+    baseline: {
+      isAvailable,
+      building: setup.building,
+      floor,
+      classroom: setup.classroom,
+      deleted: false,
+    },
+  };
 }
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div className="soft-panel min-w-0 rounded-2xl p-3">
       <dt className="label">{label}</dt>
-      <dd className="text-strong mt-2 break-words text-sm font-black">{value}</dd>
+      <dd className="text-strong mt-2 break-words text-sm font-black">
+        {value}
+      </dd>
     </div>
   );
-}
-
-function RowCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="label">{label}</p>
-      <p className="text-strong mt-1 text-sm font-black">{value}</p>
-    </div>
-  );
-}
-
-function validateSetupForm(
-  form: SetupFormState,
-  existingRows: EventTeacherSetupOverview[],
-) {
-  const errors: TranslationKey[] = [];
-
-  if (!form.teacherId) {
-    errors.push("admin.assignmentsErrorTeacherRequired");
-  }
-
-  if (!form.building.trim()) {
-    errors.push("admin.assignmentsErrorBuildingRequired");
-  }
-
-  if (!form.floor.trim() || !Number.isFinite(Number(form.floor))) {
-    errors.push("admin.assignmentsErrorFloorRequired");
-  }
-
-  if (!form.classroom.trim()) {
-    errors.push("admin.assignmentsErrorClassroomRequired");
-  }
-
-  const duplicate = existingRows.some(
-    (row) =>
-      !row.id.startsWith("missing-") &&
-      row.id !== form.id &&
-      row.teacher.id === form.teacherId,
-  );
-
-  if (duplicate) {
-    errors.push("admin.assignmentsErrorDuplicate");
-  }
-
-  return errors;
-}
-
-function toSetupInput(eventId: string, form: SetupFormState) {
-  return {
-    eventId,
-    teacherId: form.teacherId,
-    building: form.building.trim(),
-    floor: Number(form.floor),
-    classroom: form.classroom.trim(),
-    isAvailable: form.isAvailable,
-  };
-}
-
-function sortSetups(assignments: EventTeacherSetupOverview[]) {
-  return [...assignments].sort((left, right) => {
-    const building = left.building.localeCompare(right.building, "tr");
-    if (building !== 0) return building;
-    if (left.floor !== right.floor) return left.floor - right.floor;
-    return left.classroom.localeCompare(right.classroom, "tr", { numeric: true });
-  });
 }

@@ -28,9 +28,22 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
   );
   const setTeacherVisited = useSessionStore((store) => store.setTeacherVisited);
   const setTeacherNotes = useSessionStore((store) => store.setTeacherNotes);
+  const completed = visited;
 
   return (
-    <article className="surface p-5">
+    <article
+      className={`surface p-5 transition ${
+        completed ? "border-dashed opacity-90 shadow-none" : ""
+      }`}
+      style={
+        completed
+          ? {
+              background:
+                "color-mix(in srgb, var(--color-border) 20%, var(--color-surface))",
+            }
+          : undefined
+      }
+    >
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -41,11 +54,18 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
               {assignment.subject || t("admin.masterDataMissingValue")}
             </p>
           </div>
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-extrabold ${availabilityClasses[assignment.availability]}`}
-          >
-            {t(availabilityKeys[assignment.availability])}
-          </span>
+          <div className="flex flex-col items-end gap-2">
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-extrabold ${availabilityClasses[assignment.availability]}`}
+            >
+              {t(availabilityKeys[assignment.availability])}
+            </span>
+            {completed ? (
+              <span className="status-success rounded-full px-3 py-1 text-xs font-extrabold">
+                {t("dashboard.completed")}
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <dl className="grid grid-cols-3 gap-2 text-sm">

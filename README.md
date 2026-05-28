@@ -290,6 +290,8 @@ Teacher assignment management is now split into two parts:
 
 Admins can manage teaching assignments from the class and teacher editors. The default row uses the teacher's default subject, and an `Add another subject` action creates extra subject rows for the same class/teacher when needed. The event setup page only manages teacher location and availability for the selected event. Active, old, and archived event setup pages are read-only. The form prevents duplicate resolved class/teacher/subject rows for teaching assignments and duplicate event/teacher rows for event setups.
 
+Pilot UI guidance: repetitive admin workflows should prefer compact table or matrix layouts, while parent-facing mobile workflows should stay compact card-based views with clear task state.
+
 Assignment data is handled through dedicated repositories:
 
 - `TeachingAssignmentRepository.listTeachingAssignmentsForClass(classId)`
