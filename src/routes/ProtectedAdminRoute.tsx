@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { SchoolHeader } from "../components/SchoolHeader";
+import { PageVersionFooter } from "../components/PageVersionFooter";
 import { useAuth } from "../auth/useAuth";
 import { useSchoolAuthorization } from "../auth/useSchoolAuthorization";
 import { useT } from "../hooks/useT";
@@ -20,6 +21,7 @@ export function ProtectedAdminRoute() {
             {t("admin.loading")}
           </p>
         </section>
+        <PageVersionFooter />
       </div>
     );
   }
@@ -47,6 +49,7 @@ export function ProtectedAdminRoute() {
             {t("admin.signOut")}
           </button>
         </section>
+        <PageVersionFooter />
       </div>
     );
   }

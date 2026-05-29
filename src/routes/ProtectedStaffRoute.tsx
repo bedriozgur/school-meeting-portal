@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { SchoolHeader } from "../components/SchoolHeader";
+import { PageVersionFooter } from "../components/PageVersionFooter";
 import { useT } from "../hooks/useT";
 import { useStaffSessionStore } from "../store/staffSessionStore";
 
@@ -17,6 +18,7 @@ export function ProtectedStaffRoute() {
             {t("staff.loading")}
           </p>
         </section>
+        <PageVersionFooter />
       </div>
     );
   }

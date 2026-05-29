@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
 import type { TeacherAssignment } from "../domain/models";
 import { useT } from "../hooks/useT";
 import { useSessionStore } from "../store/sessionStore";
+import { formatFloorLabel } from "../utils/teachers";
 
 const availabilityClasses = {
   available: "status-success",
@@ -24,18 +24,11 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
   const setTeacherVisited = useSessionStore((store) => store.setTeacherVisited);
   const setTeacherNotes = useSessionStore((store) => store.setTeacherNotes);
   const completed = visited;
-  const floorLabel = formatFloor(assignment.floor);
-  const [notesOpen, setNotesOpen] = useState(notes.trim().length > 0);
-
-  useEffect(() => {
-    if (notes.trim().length > 0) {
-      setNotesOpen(true);
-    }
-  }, [notes]);
+  const floorLabel = formatFloorLabel(assignment.floor);
 
   return (
     <article
-      className={`surface max-w-full overflow-hidden p-3 transition sm:p-4 ${
+      className={`surface max-w-full overflow-hidden p-3 transition-all duration-200 sm:p-4 ${
         completed ? "border-dashed opacity-90 shadow-none" : ""
       }`}
       style={
@@ -47,16 +40,30 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
           : undefined
       }
     >
-      <div className="flex flex-col gap-2.5">
-        <div className="flex items-start justify-between gap-2">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-start gap-3">
+          <label className="mt-0.5 flex shrink-0 items-center">
+            <input
+              aria-label={t("dashboard.visited")}
+              checked={visited}
+              className="h-5 w-5 shrink-0 [accent-color:var(--color-primary)]"
+              onChange={(event) =>
+                setTeacherVisited(assignment.id, event.target.checked)
+              }
+              type="checkbox"
+            />
+          </label>
+
           <div className="min-w-0 flex-1">
-            <h3 className="text-strong break-words text-[15px] font-extrabold leading-tight sm:text-base">
-              {assignment.teacher.name}
-              <span className="mx-1 text-[color:var(--color-muted-text)]">—</span>
-              <span className="text-strong">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+              <h3 className="text-strong break-words text-[15px] font-extrabold leading-tight sm:text-base">
+                {assignment.teacher.name}
+              </h3>
+              <span className="text-[color:var(--color-muted-text)]">—</span>
+              <p className="text-strong break-words text-[15px] font-extrabold leading-tight sm:text-base">
                 {assignment.subject || t("admin.masterDataMissingValue")}
-              </span>
-            </h3>
+              </p>
+            </div>
             <p className="copy mt-1 break-words text-xs font-semibold leading-snug sm:text-sm">
               {assignment.building || t("admin.masterDataMissingValue")}
               {" · "}
@@ -65,6 +72,7 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
               {assignment.classroom || t("admin.masterDataMissingValue")}
             </p>
           </div>
+
           <div className="flex shrink-0 flex-col items-end gap-1">
             {assignment.availability === "available" ? null : (
               <span
@@ -93,52 +101,18 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
           </p>
         ) : null}
 
-        <label className="flex min-h-10 items-center gap-2 rounded-2xl border bg-white px-3 py-2 text-sm font-extrabold [border-color:var(--color-border)]">
-          <input
-            checked={visited}
-            className="h-4 w-4 shrink-0 [accent-color:var(--color-primary)]"
+        <label className="block">
+          <span className="sr-only">{t("dashboard.notes")}</span>
+          <textarea
+            className="input min-h-16 resize-y text-sm"
             onChange={(event) =>
-              setTeacherVisited(assignment.id, event.target.checked)
+              setTeacherNotes(assignment.id, event.target.value)
             }
-            type="checkbox"
+            placeholder={t("dashboard.notesPlaceholder")}
+            value={notes}
           />
-          {t("dashboard.visited")}
         </label>
-
-        <details
-          className="rounded-2xl border bg-white [border-color:var(--color-border)]"
-          open={notesOpen}
-          onToggle={(event) =>
-            setNotesOpen((event.currentTarget as HTMLDetailsElement).open)
-          }
-        >
-          <summary className="cursor-pointer list-none px-3 py-2 text-xs font-extrabold uppercase tracking-[0.18em] text-[color:var(--color-muted-text)]">
-            {t("dashboard.notes")}
-          </summary>
-          <div className="px-3 pb-3">
-            <textarea
-              className="input min-h-16 resize-y text-sm"
-              onChange={(event) =>
-                setTeacherNotes(assignment.id, event.target.value)
-              }
-              placeholder={t("dashboard.notesPlaceholder")}
-              value={notes}
-            />
-          </div>
-        </details>
       </div>
     </article>
   );
-}
-
-function formatFloor(floor: number) {
-  if (floor === 0) {
-    return "Zemin Kat";
-  }
-
-  if (floor === 1) {
-    return "Kat 1";
-  }
-
-  return `Kat ${floor}`;
 }

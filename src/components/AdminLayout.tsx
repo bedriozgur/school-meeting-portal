@@ -5,6 +5,7 @@ import { repositories } from "../repositories";
 import { useAdminSchoolStore } from "../store/adminSchoolStore";
 import { useT } from "../hooks/useT";
 import type { TranslationKey } from "../i18n/i18n";
+import { PageVersionFooter } from "./PageVersionFooter";
 import { SchoolHeader } from "./SchoolHeader";
 import type { School } from "../domain/models";
 
@@ -173,6 +174,7 @@ export function AdminLayout() {
           <Outlet />
         </section>
       </div>
+      <PageVersionFooter />
     </div>
   );
 }

@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { PageVersionFooter } from "../components/PageVersionFooter";
 import { TeacherCard } from "../components/TeacherCard";
-import { VersionBadge } from "../components/VersionBadge";
 import type { ParentMeetingView } from "../domain/models";
 import { useT } from "../hooks/useT";
 import { repositories } from "../repositories";
 import { useSessionStore } from "../store/sessionStore";
 import { useSchoolBranding } from "../theme/useSchoolBranding";
-import { buildNotesSummary } from "../utils/share";
+import { buildParentMeetingReport } from "../utils/share";
 import { sortTeacherAssignmentsWithCompletion } from "../utils/teachers";
 
 // Parent-facing pages should stay compact, task-oriented queues; avoid large decorative cards.
@@ -133,13 +133,13 @@ export function StudentDashboardPage() {
     };
   }, [decodedMeetingCode, decodedSchoolNumber, setMeetingCode, setSchoolNumber]);
 
-  const summary = parentMeetingView
-    ? buildNotesSummary({
+  const report = parentMeetingView
+    ? buildParentMeetingReport({
         language,
         parentMeetingView,
         teacherState,
       })
-    : "";
+    : null;
 
   function handleShare() {
     setShareMessage("");
@@ -148,10 +148,10 @@ export function StudentDashboardPage() {
       return;
     }
 
-    if (navigator.share) {
+    if (navigator.share && report) {
       void navigator.share({
-        title: t("dashboard.shareTitle"),
-        text: summary,
+        title: report.subject,
+        text: report.body,
       });
       return;
     }
@@ -160,8 +160,8 @@ export function StudentDashboardPage() {
   }
 
   function handleEmail() {
-    const subject = encodeURIComponent(t("dashboard.emailSubject"));
-    const body = encodeURIComponent(summary);
+    const subject = encodeURIComponent(report?.subject ?? t("dashboard.emailSubject"));
+    const body = encodeURIComponent(report?.body ?? "");
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }
 
@@ -198,12 +198,17 @@ export function StudentDashboardPage() {
           <p className="text-strong text-lg font-black tracking-tight sm:text-xl">
             {t(branding.schoolName)}
           </p>
-          <p className="label text-[9px] tracking-[0.24em]">
-            {decodedMeetingCode}
-          </p>
-          <p className="text-strong text-sm font-bold sm:text-base">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-strong min-w-0 flex-1 text-sm font-black leading-tight sm:text-base">
+              {parentMeetingView?.meetingEvent.title ?? t("meeting.title")}
+            </p>
+            <p className="label shrink-0 text-[9px] tracking-[0.24em]">
+              {decodedMeetingCode}
+            </p>
+          </div>
+          <p className="text-strong text-sm font-bold leading-tight sm:text-base">
             {parentMeetingView
-              ? `${parentMeetingView.student.name} · ${parentMeetingView.student.className}`
+              ? `${parentMeetingView.student.name} · ${parentMeetingView.student.className} · ${parentMeetingView.student.schoolNumber}`
               : t("dashboard.unknownStudent")}
           </p>
           <p className="copy text-xs font-semibold sm:text-sm">
@@ -229,7 +234,7 @@ export function StudentDashboardPage() {
 
       {status === "success" && parentMeetingView ? (
         <section>
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-2.5 lg:grid-cols-2">
             {teacherAssignments.map((assignment) => (
               <TeacherCard key={assignment.id} assignment={assignment} />
             ))}
@@ -249,16 +254,8 @@ export function StudentDashboardPage() {
       ) : null}
 
       <section className="surface px-4 py-3 sm:px-5 sm:py-4">
-        <div className="grid gap-2 sm:grid-cols-3">
-          <button className="btn-primary py-2.5 text-sm" onClick={handleStartOver} type="button">
-            {t("dashboard.startOver")}
-          </button>
-          <button
-            className="btn-secondary py-2.5 text-sm"
-            disabled={!parentMeetingView}
-            onClick={handleShare}
-            type="button"
-          >
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button className="btn-primary py-2.5 text-sm" onClick={handleShare} type="button">
             {t("dashboard.shareSave")}
           </button>
           <button
@@ -270,11 +267,12 @@ export function StudentDashboardPage() {
             {t("dashboard.emailSelf")}
           </button>
         </div>
+        <button className="btn-secondary mt-2 w-full py-2.5 text-sm" onClick={handleStartOver} type="button">
+            {t("dashboard.startOver")}
+          </button>
       </section>
 
-      <footer className="pb-1 text-center">
-        <VersionBadge compact />
-      </footer>
+      <PageVersionFooter />
     </div>
   );
 }

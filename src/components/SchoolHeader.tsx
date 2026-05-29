@@ -1,7 +1,6 @@
 import { useT } from "../hooks/useT";
 import { useSchoolBranding } from "../theme/useSchoolBranding";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { VersionBadge } from "./VersionBadge";
 
 export function SchoolHeader() {
   const { t } = useT();
@@ -32,10 +31,7 @@ export function SchoolHeader() {
           </p>
         </div>
       </div>
-      <div className="flex flex-col items-end gap-1">
-        <LanguageSwitcher />
-        <VersionBadge />
-      </div>
+      <LanguageSwitcher compact />
     </header>
   );
 }

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SchoolHeader } from "../components/SchoolHeader";
+import { PageVersionFooter } from "../components/PageVersionFooter";
 import { useAuth } from "../auth/useAuth";
 import { useSchoolAuthorization } from "../auth/useSchoolAuthorization";
 import { useT } from "../hooks/useT";
@@ -161,6 +162,7 @@ export function AdminLoginPage() {
           {isLoading ? t("admin.loading") : t("admin.googleSignIn")}
         </button>
       </section>
+      <PageVersionFooter />
     </div>
   );
 }

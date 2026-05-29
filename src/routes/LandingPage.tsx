@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
-import { VersionBadge } from "../components/VersionBadge";
+import { PageVersionFooter } from "../components/PageVersionFooter";
 import { useT } from "../hooks/useT";
 import { normalizeMeetingCode } from "../repositories/meetingCodes";
 import { useSessionStore } from "../store/sessionStore";
@@ -30,7 +30,7 @@ export function LandingPage() {
   return (
     <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-3xl flex-col px-0 sm:px-0">
       <div className="flex justify-end pt-1 sm:pt-0">
-        <LanguageSwitcher compact className="scale-[0.92] origin-top-right sm:scale-100" />
+        <LanguageSwitcher compact className="shrink-0" />
       </div>
 
       <section className="flex flex-1 items-center justify-center py-2 sm:py-4">
@@ -85,9 +85,7 @@ export function LandingPage() {
             </div>
           </form>
 
-          <footer className="pt-0.5">
-            <VersionBadge compact />
-          </footer>
+          <PageVersionFooter className="pt-0.5" />
         </div>
       </section>
     </div>

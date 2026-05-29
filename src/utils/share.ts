@@ -1,47 +1,93 @@
 import type { ParentMeetingView } from "../domain/models";
 import { translate, type Language } from "../i18n/i18n";
 import type { useSessionStore } from "../store/sessionStore";
-import { sortTeacherAssignments } from "./teachers";
+import { formatFloorLabel, sortTeacherAssignments } from "./teachers";
 
 type TeacherState = ReturnType<typeof useSessionStore.getState>["teacherState"];
+
+type ParentMeetingReport = {
+  subject: string;
+  body: string;
+};
+
+export function buildParentMeetingReport(params: {
+  language: Language;
+  parentMeetingView: ParentMeetingView;
+  teacherState: TeacherState;
+}): ParentMeetingReport {
+  const { language, parentMeetingView, teacherState } = params;
+  const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
+  const { meetingEvent, student, school, classTeacher, teacherAssignments } =
+    parentMeetingView;
+  const meetingName = meetingEvent.title.trim() || t("summary.meetingNotes");
+  const subject = `${school.name} - ${meetingName}`;
+  const visitedAssignments = sortTeacherAssignments(teacherAssignments).filter(
+    (assignment) => teacherState[assignment.id]?.visited,
+  );
+  const notVisitedAssignments = sortTeacherAssignments(teacherAssignments).filter(
+    (assignment) => !teacherState[assignment.id]?.visited,
+  );
+
+  const lines = [
+    school.name,
+    meetingName,
+    "",
+    `${t("summary.meetingCode")}: ${meetingEvent.code}`,
+    `${t("summary.student")}: ${student.name}`,
+    `${t("summary.schoolNumber")}: ${student.schoolNumber}`,
+    `${t("summary.class")}: ${student.className}`,
+    `${t("summary.classTeacher")}: ${classTeacher?.name ?? t("dashboard.unknownClass")}`,
+    "",
+    "────────────────────────",
+    "",
+    `${t("summary.visitedTeachers")} (${visitedAssignments.length})`,
+    "",
+    ...renderTeacherSection(visitedAssignments, teacherState, t),
+    "────────────────────────",
+    "",
+    `${t("summary.notVisitedTeachers")} (${notVisitedAssignments.length})`,
+    "",
+    ...renderTeacherSection(notVisitedAssignments, teacherState, t),
+  ];
+
+  return {
+    subject,
+    body: lines.join("\n"),
+  };
+}
 
 export function buildNotesSummary(params: {
   language: Language;
   parentMeetingView: ParentMeetingView;
   teacherState: TeacherState;
 }): string {
-  const { language, parentMeetingView, teacherState } = params;
-  const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
-  const { meetingEvent, student } = parentMeetingView;
-  const lines = [
-    t("summary.header"),
-    `${t("summary.meetingCode")}: ${meetingEvent.code}`,
-    `${t("summary.schoolNumber")}: ${student.schoolNumber}`,
-    `${t("dashboard.studentName")}: ${student.name}`,
-    `${t("dashboard.className")}: ${student.className}`,
-    "",
-  ];
+  return buildParentMeetingReport(params).body;
+}
 
-  for (const assignment of sortTeacherAssignments(
-    parentMeetingView.teacherAssignments,
-  )) {
+function renderTeacherSection(
+  assignments: ParentMeetingView["teacherAssignments"],
+  teacherState: TeacherState,
+  t: (key: Parameters<typeof translate>[1]) => string,
+) {
+  return assignments.flatMap((assignment) => {
     const state = teacherState[assignment.id];
-    const status = state?.visited
-      ? t("summary.visited")
-      : t("summary.notVisited");
     const notes = state?.notes.trim() || t("summary.noNotes");
     const location = assignment.locationMissing
       ? t("summary.locationMissing")
-      : `${assignment.building}/${assignment.floor}/${assignment.classroom}`;
+      : `${assignment.building} · ${formatFloorLabel(assignment.floor)} · ${assignment.classroom}`;
+    const visited = state?.visited ? t("summary.yes") : t("summary.no");
 
-    lines.push(
-      `${assignment.teacher.name} - ${
-        assignment.subject || t("admin.masterDataMissingValue")
-      } - ${location}`,
-      `${status}: ${notes}`,
+    return [
+      "────────────────────────",
       "",
-    );
-  }
-
-  return lines.join("\n");
+      `${assignment.teacher.name} — ${assignment.subject || t("admin.masterDataMissingValue")}`,
+      "",
+      location,
+      "",
+      `${t("summary.visitedState")}: ${visited}`,
+      `${t("summary.notesLabel")}:`,
+      notes,
+      "",
+    ];
+  });
 }

@@ -77,6 +77,18 @@ export function sortTeacherAssignmentsWithCompletion(
   });
 }
 
+export function formatFloorLabel(floor: number) {
+  if (floor === 0) {
+    return "Zemin Kat";
+  }
+
+  if (floor === 1) {
+    return "Kat 1";
+  }
+
+  return `Kat ${floor}`;
+}
+
 function getCompletionGroup(
   assignment: TeacherAssignment,
   completed: boolean,

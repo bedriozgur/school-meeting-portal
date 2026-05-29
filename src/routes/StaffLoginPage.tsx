@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { SchoolHeader } from "../components/SchoolHeader";
+import { PageVersionFooter } from "../components/PageVersionFooter";
 import { useT } from "../hooks/useT";
 import { isStaffAccessCodeValid, useStaffSessionStore } from "../store/staffSessionStore";
 
@@ -95,6 +96,7 @@ export function StaffLoginPage() {
           </button>
         </form>
       </section>
+      <PageVersionFooter />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SchoolHeader } from "../components/SchoolHeader";
+import { PageVersionFooter } from "../components/PageVersionFooter";
 import { DEFAULT_SCHOOL_ID } from "../config/school";
 import type { MeetingEvent, Student } from "../domain/models";
 import { QrCodeCard } from "../features/qr/QrCodeCard";
@@ -388,6 +389,7 @@ export function StaffDashboardPage() {
         <section className="surface my-auto p-6 text-center">
           <p className="text-strong text-lg font-extrabold">{t("staff.loading")}</p>
         </section>
+        <PageVersionFooter />
       </div>
     );
   }
@@ -401,6 +403,7 @@ export function StaffDashboardPage() {
             {t(loadErrorKey)}
           </p>
         </section>
+        <PageVersionFooter />
       </div>
     );
   }
@@ -601,6 +604,8 @@ export function StaffDashboardPage() {
           ) : null}
         </article>
       </section>
+
+      <PageVersionFooter />
     </div>
   );
 }
