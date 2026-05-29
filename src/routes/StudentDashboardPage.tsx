@@ -93,12 +93,24 @@ export function StudentDashboardPage() {
 
   useEffect(() => {
     let isCurrent = true;
+    const debugEnabled = import.meta.env.DEV === true;
+    const startedAt = performance.now();
 
     setMeetingCode(decodedMeetingCode);
     setSchoolNumber(decodedSchoolNumber);
 
     setStatus("loading");
     setParentMeetingView(null);
+
+    if (debugEnabled) {
+      console.info(
+        "[Parent dashboard] load started",
+        JSON.stringify({
+          meetingCode: decodedMeetingCode,
+          schoolNumber: decodedSchoolNumber,
+        }),
+      );
+    }
 
     repositories.parentMeetingRepository
       .getParentMeetingView({
@@ -112,6 +124,18 @@ export function StudentDashboardPage() {
 
         setParentMeetingView(view);
         setStatus(view ? "success" : "error");
+
+        if (debugEnabled) {
+          console.info(
+            "[Parent dashboard] load resolved",
+            JSON.stringify({
+              meetingCode: decodedMeetingCode,
+              schoolNumber: decodedSchoolNumber,
+              found: Boolean(view),
+              durationMs: Math.round(performance.now() - startedAt),
+            }),
+          );
+        }
       })
       .catch((error) => {
         if (!isCurrent) {
@@ -124,6 +148,17 @@ export function StudentDashboardPage() {
           error,
         });
         setStatus("error");
+
+        if (debugEnabled) {
+          console.error(
+            "[Parent dashboard] load failed",
+            JSON.stringify({
+              meetingCode: decodedMeetingCode,
+              schoolNumber: decodedSchoolNumber,
+              durationMs: Math.round(performance.now() - startedAt),
+            }),
+          );
+        }
       });
 
     return () => {
@@ -173,21 +208,21 @@ export function StudentDashboardPage() {
       <ParentHeader />
 
       <section className="surface px-4 py-4 sm:px-5 sm:py-5">
-        <div className="space-y-2 text-left">
+        <div className="space-y-1.5 text-left">
           <div className="flex items-start justify-between gap-3">
-            <p className="text-strong min-w-0 flex-1 text-lg font-black leading-tight sm:text-xl">
+            <p className="text-strong min-w-0 flex-1 text-xl font-black leading-tight sm:text-2xl">
               {parentMeetingView?.meetingEvent.title ?? t("meeting.title")}
             </p>
-            <p className="label shrink-0 text-[9px] tracking-[0.24em]">
+            <p className="label shrink-0 text-[9px] tracking-[0.24em] sm:text-[10px]">
               {decodedMeetingCode}
             </p>
           </div>
-          <p className="text-strong text-lg font-bold leading-tight sm:text-xl">
+          <p className="text-strong text-lg font-bold leading-tight sm:text-[1.15rem]">
             {parentMeetingView
               ? `${parentMeetingView.student.name} · ${parentMeetingView.student.className} · ${parentMeetingView.student.schoolNumber}`
               : t("dashboard.unknownStudent")}
           </p>
-          <p className="copy text-sm font-semibold sm:text-base">
+          <p className="copy text-sm font-semibold sm:text-[15px]">
             {t("dashboard.classTeacher")}:{" "}
             {parentMeetingView?.classTeacher?.name ?? t("dashboard.unknownClass")}
           </p>
@@ -231,16 +266,16 @@ export function StudentDashboardPage() {
 
       <section className="surface px-4 py-3 sm:px-5 sm:py-4">
         <div className="grid gap-2 sm:grid-cols-2">
-          <button className="btn-primary py-2.5 text-sm" onClick={handleShare} type="button">
-            {t("dashboard.shareSave")}
-          </button>
           <button
-            className="btn-secondary py-2.5 text-sm"
+            className="btn-primary py-2.5 text-sm font-black"
             disabled={!parentMeetingView}
             onClick={handleEmail}
             type="button"
           >
             {t("dashboard.emailSelf")}
+          </button>
+          <button className="btn-secondary py-2.5 text-sm font-bold" onClick={handleShare} type="button">
+            {t("dashboard.shareSave")}
           </button>
         </div>
         <button

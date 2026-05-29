@@ -56,7 +56,7 @@
   "staff.studentSupportQrLabel": "Öğrenci destek QR hedefi",
   "staff.studentQrEmptyHeading": "Öğrenci arayın",
   "meeting.title": "Öğrenci bilgisi",
-  "meeting.description": "Öğrencinin okul numarasını girerek görüşme listesini açın.\n\nOkul numarasını bilmiyorsanız lütfen görevli personelden yardım isteyin.",
+  "meeting.description": "Öğrencinin okul numarasını girerek görüşme listesini açın.\nOkul numarasını bilmiyorsanız lütfen görevli personelden yardım isteyin.",
   "meeting.schoolNumberLabel": "Okul numarası",
   "meeting.schoolNumberPlaceholder": "Örn. 2458",
   "meeting.continue": "Öğrenci paneline git",

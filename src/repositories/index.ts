@@ -1,21 +1,3 @@
-import { mockMeetingRepository } from "./mock/mockMeetingRepository";
-import { mockAssignmentRepository } from "./mock/mockAssignmentRepository";
-import { mockTeachingAssignmentRepository } from "./mock/mockTeachingAssignmentRepository";
-import { mockClassRepository } from "./mock/mockClassRepository";
-import { mockParentMeetingRepository } from "./mock/mockParentMeetingRepository";
-import { mockSchoolRepository } from "./mock/mockSchoolRepository";
-import { mockSchoolUserRepository } from "./mock/mockSchoolUserRepository";
-import { mockStudentRepository } from "./mock/mockStudentRepository";
-import { mockTeacherRepository } from "./mock/mockTeacherRepository";
-import { firestoreAssignmentRepository } from "./firestore/firestoreAssignmentRepository";
-import { firestoreTeachingAssignmentRepository } from "./firestore/firestoreTeachingAssignmentRepository";
-import { firestoreMeetingRepository } from "./firestore/firestoreMeetingRepository";
-import { firestoreClassRepository } from "./firestore/firestoreClassRepository";
-import { firestoreParentMeetingRepository } from "./firestore/firestoreParentMeetingRepository";
-import { firestoreSchoolRepository } from "./firestore/firestoreSchoolRepository";
-import { firestoreSchoolUserRepository } from "./firestore/firestoreSchoolUserRepository";
-import { firestoreStudentRepository } from "./firestore/firestoreStudentRepository";
-import { firestoreTeacherRepository } from "./firestore/firestoreTeacherRepository";
 import type {
   AssignmentRepository,
   ClassRepository,
@@ -48,29 +30,136 @@ function getDataSource(): DataSource {
     : "mock";
 }
 
-const mockRepositories: RepositorySet = {
-  meetingRepository: mockMeetingRepository,
-  classRepository: mockClassRepository,
-  teacherRepository: mockTeacherRepository,
-  teachingAssignmentRepository: mockTeachingAssignmentRepository,
-  assignmentRepository: mockAssignmentRepository,
-  schoolRepository: mockSchoolRepository,
-  schoolUserRepository: mockSchoolUserRepository,
-  studentRepository: mockStudentRepository,
-  parentMeetingRepository: mockParentMeetingRepository,
-};
+function createLazyRepository<T extends object>(
+  loader: () => Promise<T>,
+): T {
+  let loaded: Promise<T> | null = null;
 
-const firestoreRepositories: RepositorySet = {
-  meetingRepository: firestoreMeetingRepository,
-  classRepository: firestoreClassRepository,
-  teacherRepository: firestoreTeacherRepository,
-  teachingAssignmentRepository: firestoreTeachingAssignmentRepository,
-  assignmentRepository: firestoreAssignmentRepository,
-  schoolRepository: firestoreSchoolRepository,
-  schoolUserRepository: firestoreSchoolUserRepository,
-  studentRepository: firestoreStudentRepository,
-  parentMeetingRepository: firestoreParentMeetingRepository,
-};
+  const load = () => {
+    loaded ??= loader();
+    return loaded;
+  };
+
+  return new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === Symbol.toStringTag) {
+          return "LazyRepository";
+        }
+
+        return (...args: unknown[]) =>
+          load().then((repository) => {
+            const method = Reflect.get(repository as object, prop, repository);
+
+            if (typeof method !== "function") {
+              throw new Error(
+                `Lazy repository method ${String(prop)} is not available.`,
+              );
+            }
+
+            return method.apply(repository, args);
+          });
+      },
+    },
+  ) as T;
+}
+
+function createLazyRepositories(loader: {
+  meetingRepository: () => Promise<RepositorySet["meetingRepository"]>;
+  classRepository: () => Promise<RepositorySet["classRepository"]>;
+  teacherRepository: () => Promise<RepositorySet["teacherRepository"]>;
+  teachingAssignmentRepository: () => Promise<
+    RepositorySet["teachingAssignmentRepository"]
+  >;
+  assignmentRepository: () => Promise<RepositorySet["assignmentRepository"]>;
+  schoolRepository: () => Promise<RepositorySet["schoolRepository"]>;
+  schoolUserRepository: () => Promise<RepositorySet["schoolUserRepository"]>;
+  studentRepository: () => Promise<RepositorySet["studentRepository"]>;
+  parentMeetingRepository: () => Promise<
+    RepositorySet["parentMeetingRepository"]
+  >;
+}): RepositorySet {
+  return {
+    meetingRepository: createLazyRepository(() => loader.meetingRepository()),
+    classRepository: createLazyRepository(() => loader.classRepository()),
+    teacherRepository: createLazyRepository(() => loader.teacherRepository()),
+    teachingAssignmentRepository: createLazyRepository(() =>
+      loader.teachingAssignmentRepository(),
+    ),
+    assignmentRepository: createLazyRepository(() => loader.assignmentRepository()),
+    schoolRepository: createLazyRepository(() => loader.schoolRepository()),
+    schoolUserRepository: createLazyRepository(() => loader.schoolUserRepository()),
+    studentRepository: createLazyRepository(() => loader.studentRepository()),
+    parentMeetingRepository: createLazyRepository(() =>
+      loader.parentMeetingRepository(),
+    ),
+  };
+}
+
+const mockRepositories = createLazyRepositories({
+  meetingRepository: () =>
+    import("./mock/mockMeetingRepository").then((module) => module.mockMeetingRepository),
+  classRepository: () =>
+    import("./mock/mockClassRepository").then((module) => module.mockClassRepository),
+  teacherRepository: () =>
+    import("./mock/mockTeacherRepository").then((module) => module.mockTeacherRepository),
+  teachingAssignmentRepository: () =>
+    import("./mock/mockTeachingAssignmentRepository").then(
+      (module) => module.mockTeachingAssignmentRepository,
+    ),
+  assignmentRepository: () =>
+    import("./mock/mockAssignmentRepository").then((module) => module.mockAssignmentRepository),
+  schoolRepository: () =>
+    import("./mock/mockSchoolRepository").then((module) => module.mockSchoolRepository),
+  schoolUserRepository: () =>
+    import("./mock/mockSchoolUserRepository").then((module) => module.mockSchoolUserRepository),
+  studentRepository: () =>
+    import("./mock/mockStudentRepository").then((module) => module.mockStudentRepository),
+  parentMeetingRepository: () =>
+    import("./mock/mockParentMeetingRepository").then(
+      (module) => module.mockParentMeetingRepository,
+    ),
+});
+
+const firestoreRepositories = createLazyRepositories({
+  meetingRepository: () =>
+    import("./firestore/firestoreMeetingRepository").then(
+      (module) => module.firestoreMeetingRepository,
+    ),
+  classRepository: () =>
+    import("./firestore/firestoreClassRepository").then(
+      (module) => module.firestoreClassRepository,
+    ),
+  teacherRepository: () =>
+    import("./firestore/firestoreTeacherRepository").then(
+      (module) => module.firestoreTeacherRepository,
+    ),
+  teachingAssignmentRepository: () =>
+    import("./firestore/firestoreTeachingAssignmentRepository").then(
+      (module) => module.firestoreTeachingAssignmentRepository,
+    ),
+  assignmentRepository: () =>
+    import("./firestore/firestoreAssignmentRepository").then(
+      (module) => module.firestoreAssignmentRepository,
+    ),
+  schoolRepository: () =>
+    import("./firestore/firestoreSchoolRepository").then(
+      (module) => module.firestoreSchoolRepository,
+    ),
+  schoolUserRepository: () =>
+    import("./firestore/firestoreSchoolUserRepository").then(
+      (module) => module.firestoreSchoolUserRepository,
+    ),
+  studentRepository: () =>
+    import("./firestore/firestoreStudentRepository").then(
+      (module) => module.firestoreStudentRepository,
+    ),
+  parentMeetingRepository: () =>
+    import("./firestore/firestoreParentMeetingRepository").then(
+      (module) => module.firestoreParentMeetingRepository,
+    ),
+});
 
 export const dataSource = getDataSource();
 

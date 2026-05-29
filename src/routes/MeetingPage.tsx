@@ -25,10 +25,19 @@ export function MeetingPage() {
 
   useEffect(() => {
     let isCurrent = true;
+    const debugEnabled = import.meta.env.DEV === true;
+    const startedAt = performance.now();
 
     setMeetingCode(decodedMeetingCode);
     setMeetingStatus("loading");
     setErrorKey(null);
+
+    if (debugEnabled) {
+      console.info(
+        "[Parent meeting] event lookup started",
+        JSON.stringify({ meetingCode: decodedMeetingCode }),
+      );
+    }
 
     repositories.meetingRepository
       .findByCode(decodedMeetingCode)
@@ -39,6 +48,17 @@ export function MeetingPage() {
 
         setMeetingStatus(meeting ? "success" : "error");
         setErrorKey(meeting ? null : "meeting.notFound");
+
+        if (debugEnabled) {
+          console.info(
+            "[Parent meeting] event lookup resolved",
+            JSON.stringify({
+              meetingCode: decodedMeetingCode,
+              found: Boolean(meeting),
+              durationMs: Math.round(performance.now() - startedAt),
+            }),
+          );
+        }
       })
       .catch(() => {
         if (!isCurrent) {
@@ -47,6 +67,16 @@ export function MeetingPage() {
 
         setMeetingStatus("error");
         setErrorKey("meeting.lookupError");
+
+        if (debugEnabled) {
+          console.error(
+            "[Parent meeting] event lookup failed",
+            JSON.stringify({
+              meetingCode: decodedMeetingCode,
+              durationMs: Math.round(performance.now() - startedAt),
+            }),
+          );
+        }
       });
 
     return () => {
@@ -57,6 +87,8 @@ export function MeetingPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedSchoolNumber = schoolNumber.trim();
+    const debugEnabled = import.meta.env.DEV === true;
+    const startedAt = performance.now();
 
     if (!normalizedSchoolNumber || meetingStatus !== "success") {
       return;
@@ -64,6 +96,16 @@ export function MeetingPage() {
 
     setStudentStatus("loading");
     setErrorKey(null);
+
+    if (debugEnabled) {
+      console.info(
+        "[Parent meeting] student lookup started",
+        JSON.stringify({
+          meetingCode: decodedMeetingCode,
+          schoolNumber: normalizedSchoolNumber,
+        }),
+      );
+    }
 
     try {
       const student = await repositories.studentRepository.findBySchoolNumber({
@@ -79,12 +121,36 @@ export function MeetingPage() {
 
       setSchoolNumber(normalizedSchoolNumber);
       setStudentStatus("success");
+
+      if (debugEnabled) {
+        console.info(
+          "[Parent meeting] student lookup resolved",
+          JSON.stringify({
+            meetingCode: decodedMeetingCode,
+            schoolNumber: normalizedSchoolNumber,
+            found: Boolean(student),
+            durationMs: Math.round(performance.now() - startedAt),
+          }),
+        );
+      }
+
       navigate(
         `/meeting/${encodeURIComponent(decodedMeetingCode)}/student/${encodeURIComponent(normalizedSchoolNumber)}`,
       );
     } catch {
       setStudentStatus("error");
       setErrorKey("meeting.lookupError");
+
+      if (debugEnabled) {
+        console.error(
+          "[Parent meeting] student lookup failed",
+          JSON.stringify({
+            meetingCode: decodedMeetingCode,
+            schoolNumber: normalizedSchoolNumber,
+            durationMs: Math.round(performance.now() - startedAt),
+          }),
+        );
+      }
     }
   }
 
@@ -93,11 +159,11 @@ export function MeetingPage() {
       <ParentHeader />
 
       <section className="surface px-4 py-4 sm:px-5 sm:py-5">
-        <div className="space-y-2">
-          <h1 className="text-strong text-lg font-black leading-tight sm:text-xl">
+        <div className="space-y-1.5">
+          <h1 className="text-strong text-xl font-black leading-tight sm:text-2xl">
             {t("meeting.title")}
           </h1>
-          <p className="copy whitespace-pre-line text-base font-semibold leading-7 sm:text-[17px]">
+          <p className="copy whitespace-pre-line text-[15px] font-semibold leading-6 sm:text-base">
             {t("meeting.description")}
           </p>
         </div>
