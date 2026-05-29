@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildMeetingCodeLookupCandidates,
+  formatMeetingCodeInput,
   generateMeetingCode,
   normalizeMeetingCode,
 } from "../src/repositories/meetingCodes";
@@ -13,6 +14,13 @@ describe("meeting codes", () => {
   it("normalizes six letters to ABC-DEF", () => {
     expect(normalizeMeetingCode("tedbrs")).toBe("TED-BRS");
     expect(normalizeMeetingCode(" TED-BRS ")).toBe("TED-BRS");
+  });
+
+  it("formats meeting code input while preserving legacy lookup behavior", () => {
+    expect(formatMeetingCodeInput("jta026")).toBe("JTA-026");
+    expect(formatMeetingCodeInput("JTA-026")).toBe("JTA-026");
+    expect(formatMeetingCodeInput("abc123")).toBe("ABC-123");
+    expect(formatMeetingCodeInput("bahar2026")).toBe("BAHAR2026");
   });
 
   it("keeps legacy numeric codes intact", () => {

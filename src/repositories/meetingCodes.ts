@@ -26,6 +26,18 @@ export function normalizeMeetingCode(meetingCode: string): string {
   return cleaned;
 }
 
+export function formatMeetingCodeInput(meetingCode: string): string {
+  const cleaned = meetingCode
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+
+  if (cleaned.length === 6) {
+    return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+  }
+
+  return cleaned;
+}
+
 export function buildMeetingCodeLookupCandidates(
   meetingCode: string,
 ): string[] {

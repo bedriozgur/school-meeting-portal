@@ -20,17 +20,23 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
   const completed = visited;
   const floorLabel = formatFloorLabel(assignment.floor);
   const isUnavailable = assignment.availability !== "available";
+  const titleClassName = completed
+    ? "text-[color:var(--color-muted-text)]"
+    : "text-strong";
+  const locationClassName = completed
+    ? "copy text-[12px] font-medium sm:text-[13px]"
+    : "copy text-[13px] font-semibold sm:text-sm";
 
   return (
     <article
       className={`surface max-w-full overflow-hidden p-3 transition-all duration-200 sm:p-4 ${
-        completed ? "border-dashed opacity-80 shadow-none" : ""
+        completed ? "border-dashed opacity-70 shadow-none" : ""
       }`}
       style={
         completed
           ? {
               background:
-                "color-mix(in srgb, var(--color-border) 28%, var(--color-surface))",
+                "color-mix(in srgb, var(--color-border) 36%, var(--color-surface))",
             }
           : undefined
       }
@@ -51,15 +57,19 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-              <h3 className="text-strong break-words text-base font-extrabold leading-tight sm:text-[1.05rem]">
+              <h3
+                className={`${titleClassName} break-words text-base font-extrabold leading-tight sm:text-[1.05rem]`}
+              >
                 {assignment.teacher.name}
               </h3>
               <span className="text-[color:var(--color-muted-text)]">—</span>
-              <p className="text-strong break-words text-base font-extrabold leading-tight sm:text-[1.05rem]">
+              <p
+                className={`${titleClassName} break-words text-base font-extrabold leading-tight sm:text-[1.05rem]`}
+              >
                 {assignment.subject || t("admin.masterDataMissingValue")}
               </p>
             </div>
-            <p className="copy mt-1 break-words text-[13px] font-semibold leading-snug sm:text-sm">
+            <p className={`${locationClassName} mt-1 break-words leading-snug`}>
               {assignment.building || t("admin.masterDataMissingValue")}
               {" · "}
               {floorLabel}
@@ -70,12 +80,18 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
 
           <div className="flex shrink-0 flex-col items-end gap-1">
             {isUnavailable ? (
-              <span className="max-w-full rounded-full border border-[color:var(--color-border)] bg-white/80 px-2 py-1 text-[10px] font-extrabold leading-tight text-[color:var(--color-muted-text)]">
+              <span
+                className={`max-w-full rounded-full border border-[color:var(--color-border)] px-2 py-1 text-[10px] font-extrabold leading-tight ${
+                  completed
+                    ? "bg-white/70 text-[color:var(--color-muted-text)]"
+                    : "bg-white/80 text-[color:var(--color-muted-text)]"
+                }`}
+              >
                 {t("dashboard.unavailable")}
               </span>
             ) : null}
             {completed ? (
-              <span className="status-success max-w-full rounded-full px-2 py-1 text-[10px] font-extrabold leading-tight opacity-95">
+              <span className="status-success max-w-full rounded-full px-2 py-1 text-[10px] font-black leading-tight shadow-sm">
                 {t("dashboard.completed")}
               </span>
             ) : null}

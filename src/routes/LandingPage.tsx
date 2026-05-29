@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { PageVersionFooter } from "../components/PageVersionFooter";
 import { useT } from "../hooks/useT";
-import { normalizeMeetingCode } from "../repositories/meetingCodes";
+import {
+  formatMeetingCodeInput,
+  normalizeMeetingCode,
+} from "../repositories/meetingCodes";
 import { useSessionStore } from "../store/sessionStore";
 import { useSchoolBranding } from "../theme/useSchoolBranding";
 
@@ -71,7 +74,9 @@ export function LandingPage() {
                 <span className="label">{t("landing.meetingCodeLabel")}</span>
                 <input
                   className="input mt-2 uppercase"
-                  onChange={(event) => setLocalMeetingCode(event.target.value)}
+                  onChange={(event) =>
+                    setLocalMeetingCode(formatMeetingCodeInput(event.target.value))
+                  }
                   placeholder={t("landing.meetingCodePlaceholder")}
                   value={meetingCode}
                 />
