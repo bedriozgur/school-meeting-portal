@@ -56,7 +56,7 @@
   "staff.studentSupportQrLabel": "Student support QR target",
   "staff.studentQrEmptyHeading": "Search for a student",
   "meeting.title": "Student information",
-  "meeting.description": "Enter the student school number to open the teacher list.",
+  "meeting.description": "Enter the student's school number to access the meeting schedule.\n\nIf you do not know the number, please ask a member of staff.",
   "meeting.schoolNumberLabel": "School number",
   "meeting.schoolNumberPlaceholder": "Example: 2458",
   "meeting.continue": "Go to student dashboard",

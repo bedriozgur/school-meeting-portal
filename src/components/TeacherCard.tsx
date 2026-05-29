@@ -9,6 +9,12 @@ const availabilityClasses = {
   limited: "status-warning",
 } as const;
 
+const availabilityLabels = {
+  available: "dashboard.available",
+  busy: "dashboard.unavailable",
+  limited: "dashboard.unavailable",
+} as const;
+
 type TeacherCardProps = {
   assignment: TeacherAssignment;
 };
@@ -56,15 +62,15 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-              <h3 className="text-strong break-words text-[15px] font-extrabold leading-tight sm:text-base">
+              <h3 className="text-strong break-words text-base font-extrabold leading-tight sm:text-lg">
                 {assignment.teacher.name}
               </h3>
               <span className="text-[color:var(--color-muted-text)]">—</span>
-              <p className="text-strong break-words text-[15px] font-extrabold leading-tight sm:text-base">
+              <p className="text-strong break-words text-base font-extrabold leading-tight sm:text-lg">
                 {assignment.subject || t("admin.masterDataMissingValue")}
               </p>
             </div>
-            <p className="copy mt-1 break-words text-xs font-semibold leading-snug sm:text-sm">
+            <p className="copy mt-1 break-words text-sm font-semibold leading-snug sm:text-base">
               {assignment.building || t("admin.masterDataMissingValue")}
               {" · "}
               {floorLabel}
@@ -74,15 +80,13 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
           </div>
 
           <div className="flex shrink-0 flex-col items-end gap-1">
-            {assignment.availability === "available" ? null : (
-              <span
-                className={`max-w-full rounded-full px-2 py-1 text-[10px] font-extrabold leading-tight ${availabilityClasses[assignment.availability]}`}
-              >
-                {t("dashboard.unavailable")}
-              </span>
-            )}
+            <span
+              className={`max-w-full rounded-full px-2 py-1 text-[10px] font-extrabold leading-tight ${availabilityClasses[assignment.availability]}`}
+            >
+              {t(availabilityLabels[assignment.availability])}
+            </span>
             {completed ? (
-              <span className="status-success max-w-full rounded-full px-2 py-1 text-[10px] font-extrabold leading-tight">
+              <span className="status-success max-w-full rounded-full px-2 py-1 text-[10px] font-extrabold leading-tight opacity-95">
                 {t("dashboard.completed")}
               </span>
             ) : null}
@@ -104,7 +108,7 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
         <label className="block">
           <span className="sr-only">{t("dashboard.notes")}</span>
           <textarea
-            className="input min-h-16 resize-y text-sm"
+            className="input min-h-14 resize-y text-sm leading-6"
             onChange={(event) =>
               setTeacherNotes(assignment.id, event.target.value)
             }

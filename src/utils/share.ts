@@ -38,12 +38,12 @@ export function buildParentMeetingReport(params: {
     `${t("summary.class")}: ${student.className}`,
     `${t("summary.classTeacher")}: ${classTeacher?.name ?? t("dashboard.unknownClass")}`,
     "",
-    "────────────────────────",
+    "────────────────",
     "",
     `${t("summary.visitedTeachers")} (${visitedAssignments.length})`,
     "",
     ...renderTeacherSection(visitedAssignments, teacherState, t),
-    "────────────────────────",
+    "────────────────",
     "",
     `${t("summary.notVisitedTeachers")} (${notVisitedAssignments.length})`,
     "",
@@ -78,7 +78,7 @@ function renderTeacherSection(
     const visited = state?.visited ? t("summary.yes") : t("summary.no");
 
     return [
-      "────────────────────────",
+      "────────────────",
       "",
       `${assignment.teacher.name} — ${assignment.subject || t("admin.masterDataMissingValue")}`,
       "",

@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { PageVersionFooter } from "../components/PageVersionFooter";
+import { ParentHeader } from "../components/ParentHeader";
 import { TeacherCard } from "../components/TeacherCard";
 import type { ParentMeetingView } from "../domain/models";
 import { useT } from "../hooks/useT";
 import { repositories } from "../repositories";
 import { useSessionStore } from "../store/sessionStore";
-import { useSchoolBranding } from "../theme/useSchoolBranding";
 import { buildParentMeetingReport } from "../utils/share";
 import { sortTeacherAssignmentsWithCompletion } from "../utils/teachers";
 
@@ -21,7 +20,6 @@ export function StudentDashboardPage() {
   const decodedMeetingCode = decodeURIComponent(meetingCode);
   const decodedSchoolNumber = decodeURIComponent(schoolNumber);
   const { language, t } = useT();
-  const branding = useSchoolBranding();
   const navigate = useNavigate();
   const [shareMessage, setShareMessage] = useState("");
   const setMeetingCode = useSessionStore((state) => state.setMeetingCode);
@@ -172,46 +170,24 @@ export function StudentDashboardPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 pb-3 sm:gap-5">
-      <header className="flex items-start justify-between gap-3 pt-1">
-        <div className="flex min-w-0 items-center gap-3">
-          {branding.logoUrl ? (
-            <img
-              alt={t("app.logoAlt")}
-              className="h-12 w-12 shrink-0 rounded-2xl border border-[color:var(--color-border)] bg-white object-contain p-1.5 shadow-soft sm:h-14 sm:w-14"
-              src={branding.logoUrl}
-            />
-          ) : (
-            <div
-              aria-label={t("app.logoAlt")}
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[color:var(--color-border)] text-sm font-black text-white shadow-soft sm:h-14 sm:w-14 sm:text-base"
-              style={{ background: "var(--color-primary)" }}
-            >
-              {t(branding.logoInitials)}
-            </div>
-          )}
-        </div>
-        <LanguageSwitcher compact className="shrink-0" />
-      </header>
+      <ParentHeader />
 
-      <section className="surface px-4 py-3 sm:px-5 sm:py-4">
+      <section className="surface px-4 py-4 sm:px-5 sm:py-5">
         <div className="space-y-2 text-left">
-          <p className="text-strong text-lg font-black tracking-tight sm:text-xl">
-            {t(branding.schoolName)}
-          </p>
           <div className="flex items-start justify-between gap-3">
-            <p className="text-strong min-w-0 flex-1 text-sm font-black leading-tight sm:text-base">
+            <p className="text-strong min-w-0 flex-1 text-lg font-black leading-tight sm:text-xl">
               {parentMeetingView?.meetingEvent.title ?? t("meeting.title")}
             </p>
             <p className="label shrink-0 text-[9px] tracking-[0.24em]">
               {decodedMeetingCode}
             </p>
           </div>
-          <p className="text-strong text-sm font-bold leading-tight sm:text-base">
+          <p className="text-strong text-lg font-bold leading-tight sm:text-xl">
             {parentMeetingView
               ? `${parentMeetingView.student.name} · ${parentMeetingView.student.className} · ${parentMeetingView.student.schoolNumber}`
               : t("dashboard.unknownStudent")}
           </p>
-          <p className="copy text-xs font-semibold sm:text-sm">
+          <p className="copy text-sm font-semibold sm:text-base">
             {t("dashboard.classTeacher")}:{" "}
             {parentMeetingView?.classTeacher?.name ?? t("dashboard.unknownClass")}
           </p>
@@ -267,9 +243,13 @@ export function StudentDashboardPage() {
             {t("dashboard.emailSelf")}
           </button>
         </div>
-        <button className="btn-secondary mt-2 w-full py-2.5 text-sm" onClick={handleStartOver} type="button">
-            {t("dashboard.startOver")}
-          </button>
+        <button
+          className="mt-2 w-full rounded-2xl border border-[color:var(--color-border)] bg-transparent px-4 py-2.5 text-sm font-extrabold text-[color:var(--color-muted-text)] transition hover:bg-white"
+          onClick={handleStartOver}
+          type="button"
+        >
+          {t("dashboard.startOver")}
+        </button>
       </section>
 
       <PageVersionFooter />
