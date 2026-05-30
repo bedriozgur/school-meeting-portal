@@ -91,7 +91,7 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
               </span>
             ) : null}
             {completed ? (
-              <span className="status-success max-w-full rounded-full px-2 py-1 text-[10px] font-black leading-tight shadow-sm">
+              <span className="status-success max-w-full rounded-full px-3 py-1.5 text-xs font-black leading-tight tracking-[0.08em] shadow-sm">
                 {t("dashboard.completed")}
               </span>
             ) : null}
@@ -113,7 +113,7 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
         <label className="block">
           <span className="sr-only">{t("dashboard.notes")}</span>
           <textarea
-            className="input min-h-14 resize-y text-sm leading-6"
+            className="input min-h-14 resize-y text-base leading-6"
             rows={2}
             onChange={(event) =>
               setTeacherNotes(assignment.id, event.target.value)
