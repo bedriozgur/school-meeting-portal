@@ -90,11 +90,6 @@ export function TeacherCard({ assignment }: TeacherCardProps) {
                 {t("dashboard.unavailable")}
               </span>
             ) : null}
-            {completed ? (
-              <span className="status-success max-w-full rounded-full px-3 py-1.5 text-xs font-black leading-tight tracking-[0.08em] shadow-sm">
-                {t("dashboard.completed")}
-              </span>
-            ) : null}
           </div>
         </div>
 

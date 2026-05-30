@@ -1,6 +1,6 @@
 import type { TranslationKey } from "../i18n/i18n";
 import type { ThemePresetName } from "./presets";
-import tedBursaLogo from "../assets/ted-bursa-logo.png";
+import tedBursaLogo from "../assets/ted-bursa-logo-optimized.png";
 
 export type SchoolBrandingConfig = {
   schoolName: TranslationKey;
