@@ -352,6 +352,7 @@ export async function findStudentForEvent(params: {
   event?: MeetingEvent | null;
 }): Promise<Student | null> {
   const { db, meetingCode, schoolNumber, event: resolvedEvent } = params;
+  const startedAt = performance.now();
   const event = resolvedEvent ?? (await findActiveOrDraftEventByCode(db, meetingCode));
 
   if (!event) {
@@ -380,6 +381,7 @@ export async function findStudentForEvent(params: {
     (await findStudentDocumentBySchoolNumber(db, event.schoolId, trimmedSchoolNumber)) ??
     (await findStudentDocumentByNormalizedSchoolNumber(db, event.schoolId, normalizedSchoolNumber)) ??
     (await findStudentDocumentByNumericSchoolNumber(db, event.schoolId, trimmedSchoolNumber));
+  const studentLookupDurationMs = Math.round(performance.now() - startedAt);
 
   if (!studentDocument) {
     logFirestoreParentLookup("student lookup rejected", {
@@ -388,6 +390,7 @@ export async function findStudentForEvent(params: {
       studentSchoolNumber: trimmedSchoolNumber,
       studentNormalizedSchoolNumber: normalizedSchoolNumber,
       reason: "student-not-found",
+      studentLookupDurationMs,
     });
     return null;
   }
@@ -402,6 +405,7 @@ export async function findStudentForEvent(params: {
     studentSchoolId,
     studentClassId: classId,
     isActive,
+    studentLookupDurationMs,
   });
 
   if (studentSchoolId !== String(event.schoolId ?? "").trim()) {
@@ -411,6 +415,7 @@ export async function findStudentForEvent(params: {
       studentSchoolId,
       eventSchoolId: String(event.schoolId ?? "").trim(),
       reason: "school-id-mismatch",
+      studentLookupDurationMs,
     });
     return null;
   }
@@ -420,6 +425,7 @@ export async function findStudentForEvent(params: {
       eventId: event.id,
       studentId: studentDocument.id,
       reason: "inactive-student",
+      studentLookupDurationMs,
     });
     return null;
   }
@@ -431,6 +437,7 @@ export async function findStudentForEvent(params: {
       studentClassId: classId,
       includedClasses: event.includedClasses,
       reason: "class-not-in-event",
+      studentLookupDurationMs,
     });
     return null;
   }

@@ -19,6 +19,8 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
   async getParentMeetingView({ meetingCode, schoolNumber }) {
     const db = requireFirestore();
     const cache = createParentLookupCache(db);
+    const debugEnabled = isDevelopmentEnvironment();
+    const startedAt = performance.now();
     const lookupContext = {
       meetingCode: meetingCode.trim().toUpperCase(),
       schoolNumber: String(schoolNumber ?? "").trim(),
@@ -26,11 +28,13 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
 
     try {
       const meetingEvent = await findActiveOrDraftEventByCode(db, meetingCode);
+      const eventLookupDurationMs = Math.round(performance.now() - startedAt);
 
       if (!meetingEvent) {
         logParentMeetingLookup("event not found", {
           ...lookupContext,
           reason: "inactive-or-missing-event",
+          eventLookupDurationMs,
         });
         return null;
       }
@@ -41,6 +45,7 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
         eventSchoolId: meetingEvent.schoolId,
         eventStatus: meetingEvent.status,
         includedClasses: meetingEvent.includedClasses,
+        eventLookupDurationMs,
       });
 
       logParentMeetingLookup("student lookup started", {
@@ -54,6 +59,7 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
         schoolNumber,
         event: meetingEvent,
       });
+      const studentLookupDurationMs = Math.round(performance.now() - startedAt);
 
       if (!student) {
         logParentMeetingLookup("student lookup rejected", {
@@ -61,6 +67,8 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
           eventId: meetingEvent.id,
           eventSchoolId: meetingEvent.schoolId,
           reason: "student-validation-failed",
+          eventLookupDurationMs,
+          studentLookupDurationMs,
         });
         return null;
       }
@@ -72,6 +80,8 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
         studentSchoolId: student.schoolId,
         studentClassId: student.classId,
         studentActive: student.isActive,
+        eventLookupDurationMs,
+        studentLookupDurationMs,
       });
 
       logParentMeetingLookup("school lookup started", {
@@ -200,6 +210,12 @@ export const firestoreParentMeetingRepository: ParentMeetingRepository = {
         classId: student.classId,
         teachingAssignmentCount: teachingAssignments.length,
         teacherAssignmentCount: teacherAssignments.length,
+        eventLookupDurationMs,
+        studentLookupDurationMs,
+        teachingAssignmentsCount: teachingAssignments.length,
+        eventTeacherSetupsCount: setupSnapshot.docs.length,
+        teacherDocCount: teacherIds.length,
+        totalParentLoadDurationMs: Math.round(performance.now() - startedAt),
       });
 
       return {
@@ -229,7 +245,23 @@ function createParentLookupCache(db: ReturnType<typeof requireFirestore>) {
         return cached;
       }
 
+      const startedAt = performance.now();
+      if (isDevelopmentEnvironment()) {
+        logParentMeetingLookup("school lookup cache miss", {
+          schoolId: cacheKey,
+        });
+      }
+
       const promise = getSchoolById(db, cacheKey);
+      promise.then((school) => {
+        if (isDevelopmentEnvironment()) {
+          logParentMeetingLookup("school lookup resolved", {
+            schoolId: cacheKey,
+            schoolDocumentId: school.id,
+            schoolLookupDurationMs: Math.round(performance.now() - startedAt),
+          });
+        }
+      });
       schoolCache.set(cacheKey, promise);
       return promise;
     },
@@ -240,7 +272,22 @@ function createParentLookupCache(db: ReturnType<typeof requireFirestore>) {
         return cached;
       }
 
+      const startedAt = performance.now();
+      if (isDevelopmentEnvironment()) {
+        logParentMeetingLookup("class lookup cache miss", {
+          classId: cacheKey,
+        });
+      }
+
       const promise = getClassById(db, cacheKey);
+      promise.then(() => {
+        if (isDevelopmentEnvironment()) {
+          logParentMeetingLookup("class lookup resolved", {
+            classId: cacheKey,
+            classLookupDurationMs: Math.round(performance.now() - startedAt),
+          });
+        }
+      });
       classCache.set(cacheKey, promise);
       return promise;
     },
@@ -251,7 +298,23 @@ function createParentLookupCache(db: ReturnType<typeof requireFirestore>) {
         return cached;
       }
 
+      const startedAt = performance.now();
+      if (isDevelopmentEnvironment()) {
+        logParentMeetingLookup("teacher lookup cache miss", {
+          teacherId: cacheKey,
+        });
+      }
+
       const promise = getTeacherByIdOrNull(db, cacheKey);
+      promise.then((teacher) => {
+        if (isDevelopmentEnvironment()) {
+          logParentMeetingLookup("teacher lookup resolved", {
+            teacherId: cacheKey,
+            found: Boolean(teacher),
+            teacherLookupDurationMs: Math.round(performance.now() - startedAt),
+          });
+        }
+      });
       teacherCache.set(cacheKey, promise);
       return promise;
     },
